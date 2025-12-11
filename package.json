@@ -1,0 +1,20 @@
+{
+  "name": "promptshield",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PromptShield PII scrubbing extension (prototype)",
+  "scripts": {
+    "build": "node build.js",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.32",
+    "cpy-cli": "^6.0.0",
+    "esbuild": "^0.27.1",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.15"
+  },
+  "overrides": {
+    "braces": "3.0.3"
+  }
+}

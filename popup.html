@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PromptShield</title>
+  <style>
+    body{font-family:system-ui,Arial;padding:12px;width:320px}
+    label{display:block;margin:8px 0}
+    button{margin-top:12px}
+  </style>
+</head>
+<body>
+  <h3>PromptShield</h3>
+  <label><input id="detect-names" type="checkbox"> Detect names (heuristic)</label>
+  <label>Redaction style:
+    <select id="style">
+      <option value="generic">Generic ([TYPE])</option>
+      <option value="numbered">Numbered ([TYPE_1])</option>
+      <option value="hashed">Hashed ([TYPE_ab12cd])</option>
+    </select>
+  </label>
+  <label><input id="auto-preview" type="checkbox"> Show preview when PII detected</label>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button id="save">Save</button>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
