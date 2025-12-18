@@ -12,8 +12,8 @@ A privacy-focused browser extension that detects and redacts PII (Personally Ide
 - **🌐 IP addresses** - 192.168.1.1
 - **🔑 API keys** - sk_live_abc123, AWS keys, JWT tokens
 - **🔗 URLs** - https://example.com
-- **📅 Dates/Birthdays** - 22nd September, 09/22/1995
-- **📍 Addresses** - Seattle WA, New York NY 10001
+- **📅 Dates/Birthdays** - 15th August, 08/15/2005
+- **📍 Addresses** - New York NY 10001
 - **🏠 Street addresses** - 123 Main Street
 - **👤 Names** (optional) - Detects names with context ("my name is...")
 
