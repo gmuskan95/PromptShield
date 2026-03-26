@@ -1,121 +1,131 @@
 # 🛡️ PromptShield
 
-A privacy-focused browser extension that detects and redacts PII (Personally Identifiable Information) before you send prompts to AI chat services.
+**Your data stays yours.**
 
-## ✨ Features
+PromptShield is a Chrome extension that catches sensitive personal information in your AI chat messages before you accidentally send it. It intercepts your prompt, highlights what it found, and lets you choose what to hide — all locally, with zero data leaving your browser.
 
-### Comprehensive PII Detection
-- **📧 Email addresses** - john.doe@example.com
-- **📱 Phone numbers** - (555) 123-4567, +1-555-123-4567
-- **💳 Credit cards** - 4532-1488-0343-6467
-- **🔐 SSN** - 123-45-6789
-- **🌐 IP addresses** - 192.168.1.1
-- **🔑 API keys** - sk_live_abc123, AWS keys, JWT tokens
-- **🔗 URLs** - https://example.com
-- **📅 Dates/Birthdays** - 15th August, 08/15/2005
-- **📍 Addresses** - New York NY 10001
-- **🏠 Street addresses** - 123 Main Street
-- **👤 Names** (optional) - Detects names with context ("my name is...")
+---
 
-### Smart Detection
-- **Context-aware name detection** - Catches names after phrases like "my name is", "I'm", "called"
-- **Works on modern chat UIs** - Claude.ai, ChatGPT, Gemini, and more
-- **Real-time interception** - Blocks send until you review and approve
-- **Flexible redaction styles** - Generic, numbered, or hashed placeholders
+## How it works
 
-## 🚀 Installation
+1. Type a message in any supported AI chat
+2. Press Send or Cmd/Ctrl+Enter
+3. If PII is detected, PromptShield shows a review modal
+4. Click any highlighted item to toggle it on/off
+5. Send with redaction, send as-is, or cancel
 
-### Development Install
+That's it. No accounts, no servers, no learning from your data.
 
-1. **Clone and build:**
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/PromptShield.git
-   cd PromptShield
-   npm install
-   npm run build
-   ```
+---
 
-2. **Load in Chrome:**
-   - Open `chrome://extensions/`
-   - Enable "Developer mode" (top right)
-   - Click "Load unpacked"
-   - Select the `dist/` folder
+## What it detects
 
-### Configuration
+| Type | Example |
+|---|---|
+| Email | john@example.com |
+| Phone | 415-555-1234 |
+| Credit card | 4111 1111 1111 1111 (Luhn-validated) |
+| SSN | 123-45-6789 |
+| IP address | 192.168.1.1 |
+| API keys | GitHub PATs, AWS AKIA keys, Stripe keys, JWTs |
+| Crypto wallets | Bitcoin, Ethereum addresses |
+| Passport numbers | A12345678 |
+| URLs | https://example.com |
+| Dates | 08/15/1990, 15th August |
+| Street addresses | 123 Main Street, New York NY 10001 |
+| Names (optional) | Heuristic — "my name is Jane" |
 
-Click the extension icon to configure:
-- ✅ **Detect names** - Enable heuristic name detection
-- 🎨 **Redaction style** - Choose how PII is replaced
-  - Generic: `[EMAIL]`
-  - Numbered: `[EMAIL_1]`, `[EMAIL_2]`
-  - Hashed: `[EMAIL_a1b2c3]`
-- 👁️ **Auto-preview** - Show modal when PII detected
+---
 
-## 🎯 How It Works
+## Supported sites
 
-1. You type a message in any chat interface
-2. Click "Send" or press Cmd/Ctrl+Enter
-3. **PromptShield intercepts** if PII is detected
-4. **Review modal appears** showing:
-   - Original text
-   - Redacted version
-   - Redaction map
-5. Choose your action:
-   - ✅ **Send Redacted** - Safe version sent
-   - ⚠️ **Send Original** - Keep PII (not recommended)
-   - ❌ **Cancel** - Don't send anything
+Claude.ai · ChatGPT · Gemini · Perplexity · Copilot · Poe · You.com · HuggingFace · Mistral · LMSYS
 
-## 🏗️ Architecture
+---
 
-```
-src/
-├── background.ts        # Service worker
-├── contentScript.ts     # Injection & interception logic
-├── detector-core.ts     # PII detection patterns
-├── detector.ts          # Detector API
-└── popup.ts            # Extension popup UI
+## Privacy
 
-build.js                # esbuild bundler
-manifest.json           # Extension manifest
-```
+- **100% local** — all detection runs in your browser via regex patterns
+- **No storage of PII** — matches are held in memory only for the duration of the modal
+- **No network requests** — the extension never phones home
+- **Closed Shadow DOM** — the modal is isolated from page JavaScript so the host site cannot read pill content
+- **No learning** — nothing is used to train any model
 
-## 🧪 Development
+---
 
-### Build
+## Installation (Developer)
+
 ```bash
+git clone https://github.com/gmuskan95/PromptShield.git
+cd PromptShield
+npm install
 npm run build
 ```
 
-### Test
-```bash
-npm test
+Then in Chrome:
+1. Go to `chrome://extensions`
+2. Enable **Developer mode** (top right)
+3. Click **Load unpacked** → select the `dist/` folder
+
+---
+
+## Settings
+
+Click the toolbar icon to access:
+
+- **Site toggle** — enable/disable PromptShield per site instantly
+- **Detect names** — heuristic name detection (may have false positives)
+- **Redaction style** — how replaced values appear:
+  - Generic: `[EMAIL]`
+  - Numbered: `[EMAIL_1]`
+  - Hashed: `[EMAIL_a3f9c1]`
+- **Theme** — Light, Dark, or Auto (follows system)
+
+---
+
+## Architecture
+
+```
+src/
+├── detector-core.ts   # PII patterns, Luhn validation, confidence scoring
+├── contentScript.ts   # Intercept logic, Shadow DOM modal, per-site selectors
+├── popup.ts           # Popup + options UI logic
+└── background.ts      # Service worker (minimal)
+
+icon.svg               # Source icon — auto-converted to PNG at build time
+build.js               # esbuild + sharp bundler
+manifest.json          # MV3 manifest, scoped host permissions
 ```
 
-### Project Structure
-- Source TypeScript files in `src/`
-- Build output in `dist/` (gitignored)
-- Uses `esbuild` for fast bundling
+---
 
-## 📝 Future Enhancements
+## Development
 
-- [ ] Machine learning-based entity detection (NER)
-- [ ] Per-site customization and allow-lists
-- [ ] Export/import redaction history
-- [ ] Support for more PII types (driver's license, passport, etc.)
-- [ ] Privacy-preserving analytics
+```bash
+npm run build   # compile TypeScript + generate icons → dist/
+npm test        # run 44 unit tests (vitest)
+```
 
-## 🤝 Contributing
+---
 
-Contributions welcome! Please feel free to submit a Pull Request.
+## Redaction styles
 
-## 🛠️ Development Tools
+Given the input `email me at john@example.com`:
 
-Built with assistance from [Claude Code](https://claude.com/claude-code) - an AI-powered development tool.
+| Style | Output |
+|---|---|
+| Generic | `email me at [EMAIL]` |
+| Numbered | `email me at [EMAIL_1]` |
+| Hashed | `email me at [EMAIL_a3f9c1]` |
 
-## 📄 License
+---
 
-MIT License - See LICENSE file for details
+## License
 
-## ⚠️ Disclaimer
+MIT — see LICENSE for details.
 
-This is a prototype. While it detects many common PII patterns, it may not catch everything. Always review your prompts before sending sensitive information.
+---
+
+## Disclaimer
+
+PromptShield catches many common PII patterns but cannot guarantee 100% detection. Always review your prompts before sending sensitive information to any AI service.
