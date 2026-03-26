@@ -93,8 +93,10 @@ describe('API_KEY', () => {
   it('detects an AWS AKIA key', () => {
     expect(types('key=AKIAIOSFODNN7EXAMPLE')).toContain('API_KEY');
   });
-  it('detects a Stripe live key', () => {
-    expect(types('sk_li''+'ve_abcdefghijklmnopqrstuvwx')).toContain('API_KEY');
+  it('detects a Stripe-style live key', () => {
+    // deliberately split to avoid triggering GitHub secret scanning on the test file itself
+    const key = 'sk_li' + 've_abcdefghijklmnopqrstuvwx';
+    expect(types(key)).toContain('API_KEY');
   });
   it('detects a GitHub PAT', () => {
     expect(types('token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789')).toContain('API_KEY');

@@ -280,17 +280,6 @@
     <button id="save">Save</button>
   </div>
 
-  <!-- Apply theme before first paint to prevent flash -->
-  <script>
-    (function(){
-      var k='promptshield_settings_v1';
-      try{chrome.storage.sync.get([k],function(r){
-        var t=(r[k]||{}).theme||'system';
-        var dark=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.setAttribute('data-theme',dark?'dark':'light');
-      });}catch(e){}
-    })();
-  </script>
   <script src="popup.js"></script>
 </body>
 </html>
