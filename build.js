@@ -11,7 +11,8 @@ async function buildAll(){
   const builds = [
     {entry: 'src/background.ts', outfile: path.join(outdir, 'background.js')},
     {entry: 'src/contentScript.ts', outfile: path.join(outdir, 'contentScript.js')},
-    {entry: 'src/popup.ts', outfile: path.join(outdir, 'popup.js')}
+    {entry: 'src/popup.ts', outfile: path.join(outdir, 'popup.js')},
+    {entry: 'src/onboarding.ts', outfile: path.join(outdir, 'onboarding.js')}
   ];
 
   await Promise.all(builds.map(b=>esbuild.build({
@@ -24,7 +25,7 @@ async function buildAll(){
   })));
 
   // copy static assets
-  const toCopy = ['manifest.json','popup.html','options.html'];
+  const toCopy = ['manifest.json','popup.html','options.html','onboarding.html'];
   // generate icons from icon.svg at build time — no manual export needed
   const svgPath = path.resolve(__dirname, 'icon.svg');
   if (fs.existsSync(svgPath)) {

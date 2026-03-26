@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Welcome to PromptShield</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:      #059669;
+      --brand-dark: #047857;
+      --brand-glow: rgba(5,150,105,0.2);
+      --text:       #0f172a;
+      --text-2:     #475569;
+      --text-3:     #94a3b8;
+      --border:     #e2e8f0;
+      --bg:         #f8fafc;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────────────────── */
+    .hero {
+      width: 100%;
+      background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%);
+      padding: 56px 24px 64px;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 500px; height: 500px; border-radius: 50%;
+      background: rgba(52,211,153,0.1);
+      right: -100px; top: -150px; pointer-events: none;
+    }
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: rgba(255,255,255,0.04);
+      left: -60px; bottom: -100px; pointer-events: none;
+    }
+    .hero-inner { position: relative; z-index: 1; }
+
+    .logo-wrap {
+      width: 72px; height: 72px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      margin: 0 auto 20px;
+    }
+    .hero h1 {
+      font-size: 36px; font-weight: 800;
+      color: #fff; letter-spacing: -1px; line-height: 1.1;
+      margin-bottom: 12px;
+    }
+    .hero p {
+      font-size: 16px; color: rgba(255,255,255,0.72);
+      max-width: 460px; line-height: 1.6; margin: 0 auto 28px;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px; padding: 5px 14px;
+      font-size: 12px; color: rgba(255,255,255,0.85); font-weight: 500;
+    }
+    .badge-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #34d399; box-shadow: 0 0 8px rgba(52,211,153,0.9);
+      flex-shrink: 0;
+    }
+
+    /* ── Content ──────────────────────────────────────────────────────────── */
+    .content {
+      width: 100%; max-width: 720px;
+      padding: 48px 24px 64px;
+      display: flex; flex-direction: column; gap: 48px;
+    }
+
+    /* ── How it works ─────────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text-3);
+      margin-bottom: 20px;
+    }
+
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    @media (max-width: 600px) { .steps { grid-template-columns: 1fr; } }
+
+    .step {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: #d1fae5; color: var(--brand);
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .step-desc  { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+    /* ── PII types ────────────────────────────────────────────────────────── */
+    .pii-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;
+    }
+    .pii-item {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 10px; padding: 11px 14px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px; color: var(--text-2);
+    }
+    .pii-icon { font-size: 16px; flex-shrink: 0; }
+
+    /* ── Sites ────────────────────────────────────────────────────────────── */
+    .sites-grid {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .site-chip {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+      cursor: default;
+    }
+
+    /* ── Privacy promise ──────────────────────────────────────────────────── */
+    .privacy-cards {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+    }
+    .privacy-card {
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .privacy-card-icon { font-size: 20px; }
+    .privacy-card-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+    .privacy-card-desc  { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+
+    /* ── CTA ──────────────────────────────────────────────────────────────── */
+    .cta-section {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; gap: 16px;
+    }
+    .cta-title { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+    .cta-sub   { font-size: 14px; color: var(--text-2); }
+
+    .cta-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+    .btn-primary {
+      padding: 13px 28px;
+      background: var(--brand); color: #fff;
+      border: none; border-radius: 10px;
+      font-size: 14.5px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 2px 12px var(--brand-glow);
+      transition: background 0.15s, transform 0.1s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-primary:hover { background: var(--brand-dark); }
+    .btn-primary:active { transform: scale(0.97); }
+
+    .btn-secondary {
+      padding: 13px 24px;
+      background: #fff; color: var(--text-2);
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-secondary:hover { border-color: #94a3b8; color: var(--text); }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    .footer {
+      width: 100%; padding: 20px 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 12px; color: var(--text-3);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="logo-wrap">🛡️</div>
+      <h1>Welcome to PromptShield</h1>
+      <p>You're protected. PromptShield quietly watches your AI messages and catches personal info before it leaves your hands.</p>
+      <div class="badge">
+        <span class="badge-dot"></span>
+        100% local · no data ever leaves your browser
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- How it works -->
+    <div>
+      <div class="section-label">How it works</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-title">You type normally</div>
+          <div class="step-desc">Use any supported AI chat site just like you always do. PromptShield runs silently in the background.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-title">PII is detected</div>
+          <div class="step-desc">Before your message sends, PromptShield scans it locally and highlights anything sensitive it finds.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-title">You choose what to hide</div>
+          <div class="step-desc">A modal shows your message with detected items highlighted. Click any item to toggle it. Then send.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What it detects -->
+    <div>
+      <div class="section-label">What it catches</div>
+      <div class="pii-grid">
+        <div class="pii-item"><span class="pii-icon">📧</span> Email addresses</div>
+        <div class="pii-item"><span class="pii-icon">📱</span> Phone numbers</div>
+        <div class="pii-item"><span class="pii-icon">💳</span> Credit cards</div>
+        <div class="pii-item"><span class="pii-icon">🔐</span> SSN / Tax IDs</div>
+        <div class="pii-item"><span class="pii-icon">🔑</span> API keys & tokens</div>
+        <div class="pii-item"><span class="pii-icon">🌐</span> IP addresses</div>
+        <div class="pii-item"><span class="pii-icon">📍</span> Street addresses</div>
+        <div class="pii-item"><span class="pii-icon">📅</span> Dates & birthdays</div>
+        <div class="pii-item"><span class="pii-icon">🪙</span> Crypto wallets</div>
+        <div class="pii-item"><span class="pii-icon">🛂</span> Passport numbers</div>
+        <div class="pii-item"><span class="pii-icon">🔗</span> URLs</div>
+        <div class="pii-item"><span class="pii-icon">👤</span> Names (optional)</div>
+      </div>
+    </div>
+
+    <!-- Supported sites -->
+    <div>
+      <div class="section-label">Works on</div>
+      <div class="sites-grid">
+        <span class="site-chip">Claude.ai</span>
+        <span class="site-chip">ChatGPT</span>
+        <span class="site-chip">Gemini</span>
+        <span class="site-chip">Perplexity</span>
+        <span class="site-chip">Microsoft Copilot</span>
+        <span class="site-chip">Poe</span>
+        <span class="site-chip">You.com</span>
+        <span class="site-chip">HuggingFace</span>
+        <span class="site-chip">Mistral</span>
+        <span class="site-chip">LMSYS</span>
+      </div>
+    </div>
+
+    <!-- Privacy promise -->
+    <div>
+      <div class="section-label">Privacy promise</div>
+      <div class="privacy-cards">
+        <div class="privacy-card">
+          <span class="privacy-card-icon">🏠</span>
+          <div class="privacy-card-title">Fully local</div>
+          <div class="privacy-card-desc">Detection runs entirely in your browser using regex patterns. No servers involved.</div>
+        </div>
+        <div class="privacy-card">
+          <span class="privacy-card-icon">🚫</span>
+          <div class="privacy-card-title">Zero storage</div>
+          <div class="privacy-card-desc">Detected PII is held in memory only while the modal is open. Nothing is saved.</div>
+        </div>
+        <div class="privacy-card">
+          <span class="privacy-card-icon">🔒</span>
+          <div class="privacy-card-title">Isolated modal</div>
+          <div class="privacy-card-desc">The review modal runs in a closed Shadow DOM — the AI site can't read what's inside it.</div>
+        </div>
+        <div class="privacy-card">
+          <span class="privacy-card-icon">🧠</span>
+          <div class="privacy-card-title">No learning</div>
+          <div class="privacy-card-desc">Your data is never used to train anything. Ever.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-section">
+      <div class="cta-title">Ready to try it?</div>
+      <div class="cta-sub">Go to any supported AI chat and type a message with your email or phone number — PromptShield will catch it.</div>
+      <div class="cta-buttons">
+        <a class="btn-primary" href="https://claude.ai" target="_blank">Try on Claude.ai</a>
+        <a class="btn-primary" href="https://chatgpt.com" target="_blank">Try on ChatGPT</a>
+        <a class="btn-secondary" id="open-settings">Open settings</a>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    PromptShield v1.0.0 · Your data stays yours
+  </div>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

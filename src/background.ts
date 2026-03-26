@@ -2,7 +2,7 @@
 // Minimal background service worker (TypeScript)
 chrome.runtime.onInstalled.addListener((details?: chrome.runtime.InstalledDetails) => {
   if (details?.reason === 'install') {
-    chrome.tabs.create({ url: 'options.html' });
+    chrome.tabs.create({ url: 'onboarding.html' });
   }
 });
 
