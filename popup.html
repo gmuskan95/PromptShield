@@ -4,25 +4,293 @@
   <meta charset="utf-8" />
   <title>PromptShield</title>
   <style>
-    body{font-family:system-ui,Arial;padding:12px;width:320px}
-    label{display:block;margin:8px 0}
-    button{margin-top:12px}
+    /* ── Reset & tokens ─────────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:       #059669;
+      --brand-dark:  #047857;
+      --brand-light: #d1fae5;
+      --brand-glow:  rgba(5,150,105,0.18);
+      --bg:          #ffffff;
+      --bg-2:        #f8fafc;
+      --bg-3:        #f1f5f9;
+      --border:      #e2e8f0;
+      --text:        #0f172a;
+      --text-2:      #475569;
+      --text-3:      #94a3b8;
+      --danger:      #ef4444;
+      --radius-sm:   6px;
+      --radius-md:   10px;
+      --radius-lg:   14px;
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md:   0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    [data-theme="dark"] {
+      --bg:          #0f172a;
+      --bg-2:        #1e293b;
+      --bg-3:        #293548;
+      --border:      #334155;
+      --text:        #f1f5f9;
+      --text-2:      #94a3b8;
+      --text-3:      #64748b;
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.3);
+      --shadow-md:   0 4px 16px rgba(0,0,0,0.4);
+      --brand-light: rgba(5,150,105,0.15);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+      width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Brand header ───────────────────────────────────────────────────────── */
+    #ps-header {
+      background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%);
+      padding: 14px 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      overflow: hidden;
+    }
+    #ps-header::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 80% 50%, rgba(52,211,153,0.2) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .ps-logo {
+      width: 32px; height: 32px; flex-shrink: 0;
+      background: rgba(255,255,255,0.12);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+      border: 1px solid rgba(255,255,255,0.18);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      position: relative; z-index: 1;
+    }
+    .ps-wordmark { position: relative; z-index: 1; }
+    .ps-wordmark-name {
+      font-size: 14px; font-weight: 700; color: #fff;
+      letter-spacing: -0.3px; line-height: 1.1;
+    }
+    .ps-wordmark-tag {
+      font-size: 10px; color: rgba(255,255,255,0.65);
+      font-weight: 400; letter-spacing: 0.1px;
+    }
+
+    /* ── Site card ──────────────────────────────────────────────────────────── */
+    #site-card {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--bg);
+      transition: background 0.2s;
+    }
+    #site-card-left { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    #site-hostname {
+      font-size: 12.5px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #site-status { font-size: 11px; color: var(--text-3); font-weight: 400; }
+
+    /* ── Toggle switch ──────────────────────────────────────────────────────── */
+    .toggle-wrap { flex-shrink: 0; }
+    .toggle-input { display: none; }
+    .toggle-label { display: flex; align-items: center; cursor: pointer; user-select: none; }
+    .toggle-track {
+      width: 42px; height: 24px; border-radius: 12px;
+      background: var(--bg-3); position: relative;
+      transition: background 0.2s;
+      border: 1px solid var(--border);
+    }
+    .toggle-input:checked + .toggle-label .toggle-track {
+      background: var(--brand); border-color: var(--brand);
+    }
+    .toggle-thumb {
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+      transition: left 0.18s cubic-bezier(.4,0,.2,1);
+    }
+    .toggle-input:checked + .toggle-label .toggle-thumb { left: 21px; }
+
+    #site-card.unsupported #site-hostname { color: var(--text-3); }
+    #site-card.unsupported .toggle-label { opacity: 0.4; pointer-events: none; }
+
+    /* ── Settings section ───────────────────────────────────────────────────── */
+    #settings { padding: 12px 16px 10px; display: flex; flex-direction: column; gap: 10px; }
+
+    .setting-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .setting-label {
+      font-size: 12.5px; font-weight: 500; color: var(--text);
+    }
+    .setting-hint {
+      font-size: 10.5px; color: var(--text-3); font-weight: 400; margin-left: 4px;
+    }
+
+    /* Checkbox row */
+    .check-row {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+    }
+    .check-row input[type=checkbox] {
+      accent-color: var(--brand); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0;
+    }
+
+    /* Select */
+    .setting-select {
+      font-size: 12px; padding: 4px 8px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--bg-2); color: var(--text);
+      cursor: pointer; outline: none;
+      transition: border-color 0.15s;
+    }
+    .setting-select:focus { border-color: var(--brand); }
+
+    /* Preview pill */
+    .preview-pill {
+      font-size: 10.5px; color: var(--text-3);
+      background: var(--bg-3); padding: 2px 8px; border-radius: 20px;
+      font-family: 'SF Mono', 'Fira Code', monospace; display: inline-block;
+      border: 1px solid var(--border);
+    }
+
+    /* Section divider */
+    .divider {
+      height: 1px; background: var(--border); margin: 0 -16px;
+    }
+
+    /* ── Theme picker ───────────────────────────────────────────────────────── */
+    .theme-group { display: flex; gap: 4px; background: var(--bg-3); padding: 3px; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+    .theme-btn {
+      flex: 1; padding: 4px 0; font-size: 11px; font-weight: 500;
+      border: none; border-radius: 4px;
+      background: transparent; color: var(--text-2);
+      cursor: pointer; transition: background 0.15s, color 0.15s;
+    }
+    .theme-btn.active {
+      background: var(--bg); color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+    [data-theme="dark"] .theme-btn.active { background: var(--bg-2); }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    #footer {
+      padding: 10px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-top: 1px solid var(--border);
+      background: var(--bg-2);
+    }
+    .saved-msg { font-size: 11.5px; color: var(--brand); opacity: 0; transition: opacity 0.3s; display: flex; align-items: center; gap: 4px; }
+    .saved-msg.show { opacity: 1; }
+
+    #save {
+      padding: 7px 18px;
+      background: var(--brand); color: #fff;
+      border: none; border-radius: var(--radius-md);
+      cursor: pointer; font-size: 12.5px; font-weight: 600;
+      letter-spacing: 0.1px;
+      box-shadow: 0 1px 4px var(--brand-glow);
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    #save:hover { background: var(--brand-dark); box-shadow: 0 2px 8px var(--brand-glow); }
+    #save:active { transform: scale(0.97); }
   </style>
 </head>
 <body>
-  <h3>PromptShield</h3>
-  <label><input id="detect-names" type="checkbox"> Detect names (heuristic)</label>
-  <label>Redaction style:
-    <select id="style">
-      <option value="generic">Generic ([TYPE])</option>
-      <option value="numbered">Numbered ([TYPE_1])</option>
-      <option value="hashed">Hashed ([TYPE_ab12cd])</option>
-    </select>
-  </label>
-  <label><input id="auto-preview" type="checkbox"> Show preview when PII detected</label>
-  <div style="display:flex;gap:8px;justify-content:flex-end">
+
+  <!-- Brand header -->
+  <div id="ps-header">
+    <div class="ps-logo">🛡️</div>
+    <div class="ps-wordmark">
+      <div class="ps-wordmark-name">PromptShield</div>
+      <div class="ps-wordmark-tag">Your data stays yours</div>
+    </div>
+  </div>
+
+  <!-- Site toggle -->
+  <div id="site-card">
+    <div id="site-card-left">
+      <div id="site-hostname">This site</div>
+      <div id="site-status">Loading…</div>
+    </div>
+    <div class="toggle-wrap">
+      <input type="checkbox" id="site-enabled" class="toggle-input" checked />
+      <label for="site-enabled" class="toggle-label">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings">
+
+    <!-- Detect names -->
+    <div class="setting-row">
+      <label class="check-row" for="detect-names">
+        <input id="detect-names" type="checkbox">
+        <span class="setting-label">Detect names <span class="setting-hint">(heuristic)</span></span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Redaction style -->
+    <div class="setting-row">
+      <span class="setting-label">Redaction style</span>
+      <select id="style" class="setting-select">
+        <option value="generic">Generic [TYPE]</option>
+        <option value="numbered">Numbered [TYPE_1]</option>
+        <option value="hashed">Hashed [TYPE_a3f9]</option>
+      </select>
+    </div>
+    <div><span class="preview-pill" id="style-preview"></span></div>
+
+    <div class="divider"></div>
+
+    <!-- Theme -->
+    <div class="setting-row">
+      <span class="setting-label">Appearance</span>
+      <div class="theme-group">
+        <button class="theme-btn" data-theme-val="light">☀️ Light</button>
+        <button class="theme-btn" data-theme-val="system">Auto</button>
+        <button class="theme-btn" data-theme-val="dark">🌙 Dark</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    <span class="saved-msg" id="saved-msg">✓ Saved</span>
     <button id="save">Save</button>
   </div>
+
+  <!-- Apply theme before first paint to prevent flash -->
+  <script>
+    (function(){
+      var k='promptshield_settings_v1';
+      try{chrome.storage.sync.get([k],function(r){
+        var t=(r[k]||{}).theme||'system';
+        var dark=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-theme',dark?'dark':'light');
+      });}catch(e){}
+    })();
+  </script>
   <script src="popup.js"></script>
 </body>
 </html>

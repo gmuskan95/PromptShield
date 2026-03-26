@@ -1,6 +1,7 @@
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 const outdir = path.resolve(__dirname, 'dist');
 try { fs.rmSync(outdir, { recursive: true, force: true }); } catch (e) {}
@@ -10,7 +11,6 @@ async function buildAll(){
   const builds = [
     {entry: 'src/background.ts', outfile: path.join(outdir, 'background.js')},
     {entry: 'src/contentScript.ts', outfile: path.join(outdir, 'contentScript.js')},
-    {entry: 'src/detector.ts', outfile: path.join(outdir, 'detector.js')},
     {entry: 'src/popup.ts', outfile: path.join(outdir, 'popup.js')}
   ];
 
@@ -25,6 +25,16 @@ async function buildAll(){
 
   // copy static assets
   const toCopy = ['manifest.json','popup.html','options.html'];
+  // generate icons from icon.svg at build time — no manual export needed
+  const svgPath = path.resolve(__dirname, 'icon.svg');
+  if (fs.existsSync(svgPath)) {
+    const destIcons = path.join(outdir, 'icons');
+    fs.mkdirSync(destIcons, { recursive: true });
+    const svgBuf = fs.readFileSync(svgPath);
+    await Promise.all([16, 48, 128].map(size =>
+      sharp(svgBuf).resize(size, size).png().toFile(path.join(destIcons, `icon${size}.png`))
+    ));
+  }
   toCopy.forEach(f=>{
     const src = path.resolve(__dirname, f);
     const dest = path.join(outdir, f);

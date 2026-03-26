@@ -1,258 +1,689 @@
 declare const chrome: any;
-declare global { interface Window { PromptShieldDetector?: any }}
+import { detectPII, redact } from './detector-core';
 
-(function(){
+(function () {
   const SETTINGS_KEY = 'promptshield_settings_v1';
 
-  function getSettings(){
-    return new Promise<any>(res=>{
-      if(chrome && chrome.storage && chrome.storage.local){
-        chrome.storage.local.get([SETTINGS_KEY], (items: any)=>{
-          res(Object.assign({detectNames:false, style:'generic', autoPreview:true}, items[SETTINGS_KEY]||{}));
+  // ---------------------------------------------------------------------------
+  // Per-site selectors — precise targeting beats generic text matching
+  // Each site can declare inputSelector and/or sendSelector.
+  // Falls back to generic heuristics if neither fires.
+  // ---------------------------------------------------------------------------
+  const SITE_CONFIGS: Record<string, { inputSelector?: string; sendSelector?: string }> = {
+    'chat.openai.com': {
+      inputSelector: '#prompt-textarea',
+      sendSelector: '[data-testid="send-button"]',
+    },
+    'chatgpt.com': {
+      inputSelector: '#prompt-textarea',
+      sendSelector: '[data-testid="send-button"]',
+    },
+    'claude.ai': {
+      inputSelector: '[contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Send"]',
+    },
+    'gemini.google.com': {
+      inputSelector: '.ql-editor[contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Send"]',
+    },
+    'perplexity.ai': {
+      inputSelector: 'textarea[placeholder]',
+      sendSelector: 'button[aria-label*="Submit"]',
+    },
+    'copilot.microsoft.com': {
+      inputSelector: 'textarea[name="q"], [contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Submit"], button[aria-label*="Send"]',
+    },
+    'you.com': {
+      inputSelector: 'textarea[id*="search"]',
+      sendSelector: 'button[type="submit"]',
+    },
+    'poe.com': {
+      inputSelector: 'textarea[class*="GrowingTextArea"]',
+      sendSelector: 'button[class*="SendButton"]',
+    },
+    'huggingface.co': {
+      inputSelector: 'textarea',
+      sendSelector: 'button[type="submit"]',
+    },
+    'chat.mistral.ai': {
+      inputSelector: 'textarea',
+      sendSelector: 'button[type="submit"]',
+    },
+    'chat.lmsys.org': {
+      inputSelector: 'textarea',
+      sendSelector: 'button[id*="send"]',
+    },
+  };
+
+  function getSiteConfig() {
+    const host = location.hostname.replace(/^www\./, '');
+    return SITE_CONFIGS[host] || {};
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settings — uses chrome.storage.sync so prefs follow the user across devices.
+  // No PII is ever written to storage.
+  // ---------------------------------------------------------------------------
+  function getSettings(): Promise<any> {
+    return new Promise(res => {
+      const defaults = { detectNames: false, style: 'generic', autoPreview: true, disabledHosts: [] as string[] };
+      if (chrome?.storage?.sync) {
+        chrome.storage.sync.get([SETTINGS_KEY], (items: any) => {
+          res(Object.assign(defaults, items[SETTINGS_KEY] || {}));
         });
-      } else res({detectNames:false, style:'generic', autoPreview:true});
+      } else {
+        res(defaults);
+      }
     });
   }
 
-  function createModal(original: string, redacted: string, map: any){
-    const id = 'promptshield-modal';
-    let existing = document.getElementById(id);
-    if(existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = id;
-    overlay.style.cssText = `
-      position: fixed !important;
-      left: 0 !important;
-      top: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      background: rgba(0,0,0,0.7) !important;
-      z-index: 2147483647 !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      font-family: system-ui, -apple-system, sans-serif !important;
-      font-size: 14px !important;
-      line-height: 1.5 !important;
-    `;
-
-    const box = document.createElement('div');
-    box.style.cssText = `
-      width: 720px !important;
-      max-width: 95% !important;
-      max-height: 90vh !important;
-      background: #ffffff !important;
-      border-radius: 12px !important;
-      padding: 24px !important;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3) !important;
-      color: #000000 !important;
-      overflow-y: auto !important;
-    `;
-
-    box.innerHTML = `
-      <h3 style="margin:0 0 16px 0 !important;font-size:18px !important;font-weight:600 !important;color:#000 !important;">🛡️ PromptShield detected PII</h3>
-      <div style="display:flex !important;gap:16px !important;margin-bottom:16px !important;">
-        <div style="flex:1 !important;">
-          <strong style="display:block !important;margin-bottom:8px !important;color:#000 !important;">Original text:</strong>
-          <pre style="white-space:pre-wrap !important;max-height:240px !important;overflow:auto !important;background:#f5f5f5 !important;padding:12px !important;border-radius:6px !important;margin:0 !important;font-size:13px !important;color:#000 !important;border:1px solid #ddd !important;">${escapeHtml(original)}</pre>
-        </div>
-        <div style="flex:1 !important;">
-          <strong style="display:block !important;margin-bottom:8px !important;color:#000 !important;">Redacted version:</strong>
-          <pre id="ps-redacted" style="white-space:pre-wrap !important;max-height:240px !important;overflow:auto !important;background:#fff3cd !important;padding:12px !important;border-radius:6px !important;margin:0 !important;font-size:13px !important;color:#000 !important;border:1px solid #ffc107 !important;">${escapeHtml(redacted)}</pre>
-        </div>
-      </div>
-      <div style="margin-top:16px !important;display:flex !important;gap:10px !important;justify-content:flex-end !important;">
-        <button id="ps-cancel" style="padding:10px 20px !important;background:#6c757d !important;color:#fff !important;border:none !important;border-radius:6px !important;cursor:pointer !important;font-size:14px !important;font-weight:500 !important;">Cancel</button>
-        <button id="ps-send-anyway" style="padding:10px 20px !important;background:#dc3545 !important;color:#fff !important;border:none !important;border-radius:6px !important;cursor:pointer !important;font-size:14px !important;font-weight:500 !important;">Send Original</button>
-        <button id="ps-send" style="padding:10px 20px !important;background:#28a745 !important;color:#fff !important;border:none !important;border-radius:6px !important;cursor:pointer !important;font-size:14px !important;font-weight:500 !important;">✓ Send Redacted</button>
-      </div>
-      <details style="margin-top:16px !important;color:#666 !important;font-size:12px !important;">
-        <summary style="cursor:pointer !important;color:#000 !important;">Show redaction map</summary>
-        <pre style="white-space:pre-wrap !important;margin-top:8px !important;background:#f5f5f5 !important;padding:8px !important;border-radius:4px !important;font-size:11px !important;color:#000 !important;">${escapeHtml(JSON.stringify(map,null,2))}</pre>
-      </details>
-    `;
-
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
-
-    console.log('[PromptShield] Modal created and added to DOM');
-    return overlay;
+  function isDisabledForCurrentHost(settings: any): boolean {
+    const host = location.hostname.replace(/^www\./, '');
+    return Array.isArray(settings.disabledHosts) && settings.disabledHosts.includes(host);
   }
 
-  function escapeHtml(s: string){
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
+  // ---------------------------------------------------------------------------
+  // Modal — inline pill toggling. Click a highlighted item to keep it as-is.
+  // No checkboxes, no preview textarea, no extra UI. Just the prompt with
+  // sensitive items highlighted. Click = toggle redaction. One Send button.
+  // ---------------------------------------------------------------------------
+  function createModal(
+    original: string,
+    matches: import('./detector-core').Match[],
+    style: string,
+  ): Promise<'cancel' | string> {
+    return new Promise(resolve => {
+      // Remove any stale modal
+      document.getElementById('promptshield-host')?.remove();
 
-  function findActiveText(): HTMLElement | null {
-    const el = document.activeElement as HTMLElement | null;
+      const redacting = matches.map(() => true);
+      let resolved = false;
 
-    // Check if active element is a text input
-    if(el) {
-      if(el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /text|search|email|tel|url/.test((el as HTMLInputElement).type))) return el;
-      if(el.isContentEditable || el.getAttribute('contenteditable') === 'true') return el;
-      // Check if active element is inside a contenteditable (for nested structures)
-      const editableParent = el.closest('[contenteditable="true"]');
-      if(editableParent) return editableParent as HTMLElement;
-    }
+      // ── Shadow DOM host — page JS cannot read inside or observe pill content ──
+      const hostEl = document.createElement('div');
+      hostEl.id = 'promptshield-host';
+      // The host itself is visible to page JS (it's in the DOM) but its internals are not.
+      hostEl.style.cssText = 'position:fixed!important;inset:0!important;z-index:2147483647!important;';
 
-    // Fallback: try to find any visible text input on the page
-    // Try contenteditable first (most modern chat UIs)
-    const contentEditables = document.querySelectorAll('[contenteditable="true"]');
-    for(let i = 0; i < contentEditables.length; i++) {
-      const ce = contentEditables[i] as HTMLElement;
-      // Check if element is visible
-      if(ce.offsetParent !== null && (ce.innerText || ce.textContent)) {
-        console.log('[PromptShield] Found contenteditable with text');
-        return ce;
+      const shadow = hostEl.attachShadow({ mode: 'closed' }); // closed = no external .shadowRoot access
+
+      // Styles injected into the shadow root (not affected by page CSS)
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        :host { all: initial; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif; }
+        #overlay {
+          position: fixed; inset: 0;
+          background: rgba(15,23,42,0.6);
+          backdrop-filter: blur(4px);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px; line-height: 1.6;
+        }
+        #box {
+          width: 620px; max-width: 95vw; max-height: 88vh;
+          background: #fff; border-radius: 18px;
+          box-shadow: 0 8px 48px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.1);
+          color: #0f172a; overflow: hidden;
+          display: flex; flex-direction: column;
+        }
+        #ps-modal-header {
+          background: linear-gradient(135deg, #2e1065 0%, #065f46 50%, #4c1d95 100%);
+          padding: 16px 20px 14px;
+          display: flex; align-items: flex-start; justify-content: space-between;
+          gap: 10px; position: relative; overflow: hidden; flex-shrink: 0;
+        }
+        #ps-modal-header::after {
+          content: ''; position: absolute; inset: 0;
+          background: radial-gradient(ellipse at 85% 50%, rgba(52,211,153,0.2) 0%, transparent 70%);
+          pointer-events: none;
+        }
+        #ps-header-left { display: flex; align-items: center; gap: 10px; position: relative; z-index: 1; }
+        #ps-header-icon {
+          width: 36px; height: 36px; flex-shrink: 0;
+          background: rgba(255,255,255,0.12); border-radius: 9px;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 18px; border: 1px solid rgba(255,255,255,0.18);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        #ps-header-text { }
+        #ps-title { font-size: 14.5px; font-weight: 700; color: #fff; letter-spacing: -0.2px; line-height: 1.2; }
+        #ps-subtitle { font-size: 11.5px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+        #ps-close-x {
+          background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+          border-radius: 6px; font-size: 14px;
+          cursor: pointer; color: rgba(255,255,255,0.8); line-height: 1;
+          padding: 5px 8px; flex-shrink: 0;
+          position: relative; z-index: 1;
+          transition: background 0.15s;
+        }
+        #ps-close-x:hover { background: rgba(255,255,255,0.22); }
+        #ps-body {
+          padding: 16px 20px; overflow-y: auto; flex: 1;
+          display: flex; flex-direction: column; gap: 14px;
+        }
+        #ps-prompt {
+          font-size: 13.5px; line-height: 1.8;
+          background: #f8fafc; border: 1px solid #e2e8f0;
+          border-radius: 10px; padding: 14px 16px;
+          word-break: break-word; white-space: pre-wrap;
+          max-height: 280px; overflow-y: auto;
+          color: #334155;
+        }
+        .pill-on {
+          display: inline-block;
+          background: #d1fae5; border: 1.5px solid #059669;
+          color: #065f46; border-radius: 5px;
+          padding: 1px 7px; cursor: pointer;
+          font-weight: 600; font-size: 0.91em;
+          white-space: nowrap; user-select: none;
+          text-decoration: line-through; text-decoration-color: #059669;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .pill-on:hover { background: #a7f3d0; border-color: #047857; }
+        .pill-off {
+          display: inline-block;
+          background: #f1f5f9; border: 1.5px solid #cbd5e1;
+          color: #475569; border-radius: 5px;
+          padding: 1px 7px; cursor: pointer;
+          font-weight: 500; font-size: 0.91em;
+          white-space: nowrap; user-select: none;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .pill-off:hover { background: #e2e8f0; border-color: #94a3b8; }
+        sup {
+          font-size: 8.5px; margin-left: 3px; font-weight: 500;
+          text-decoration: none; opacity: 0.75; vertical-align: super;
+          letter-spacing: 0.3px;
+        }
+        .legend {
+          font-size: 11.5px; color: #64748b;
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          padding: 8px 12px; background: #f8fafc; border-radius: 8px;
+          border: 1px solid #e2e8f0;
+        }
+        .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+        .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+        .legend-sep { color: #cbd5e1; }
+        .actions {
+          display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+          padding: 12px 20px; border-top: 1px solid #e2e8f0;
+          background: #f8fafc; flex-shrink: 0;
+        }
+        #ps-cancel {
+          padding: 9px 18px; background: #fff; color: #475569;
+          border: 1.5px solid #e2e8f0; border-radius: 9px;
+          cursor: pointer; font-size: 13px; font-weight: 500;
+          transition: background 0.15s, border-color 0.15s;
+        }
+        #ps-cancel:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        #ps-send-raw {
+          padding: 9px 16px; background: #fff; color: #64748b;
+          border: 1.5px solid #e2e8f0; border-radius: 9px;
+          cursor: pointer; font-size: 13px; font-weight: 500;
+          transition: background 0.15s, border-color 0.15s, color 0.15s;
+        }
+        #ps-send-raw:hover { background: #f8fafc; border-color: #94a3b8; color: #374151; }
+        #ps-send {
+          padding: 9px 22px; background: #059669; color: #fff;
+          border: none; border-radius: 9px;
+          cursor: pointer; font-size: 13px; font-weight: 600;
+          min-width: 110px; letter-spacing: 0.1px;
+          box-shadow: 0 2px 8px rgba(5,150,105,0.3);
+          transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+        }
+        #ps-send:hover { background: #047857; box-shadow: 0 4px 12px rgba(5,150,105,0.35); }
+        #ps-send:active { transform: scale(0.97); }
+        #ps-send:disabled { background: #94a3b8; box-shadow: none; cursor: default; }
+      `;
+
+      const overlay = document.createElement('div');
+      overlay.id = 'overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'PromptShield — review before sending');
+
+      const box = document.createElement('div');
+      box.id = 'box';
+
+      // ── Branded header ──
+      const modalHeader = document.createElement('div');
+      modalHeader.id = 'ps-modal-header';
+
+      const headerLeft = document.createElement('div');
+      headerLeft.id = 'ps-header-left';
+
+      const headerIcon = document.createElement('div');
+      headerIcon.id = 'ps-header-icon';
+      headerIcon.textContent = '🛡️';
+
+      const headerText = document.createElement('div');
+      headerText.id = 'ps-header-text';
+      const title = document.createElement('div');
+      title.id = 'ps-title';
+      title.textContent = 'Sensitive info detected';
+      const subtitle = document.createElement('div');
+      subtitle.id = 'ps-subtitle';
+      headerText.append(title, subtitle);
+      headerLeft.append(headerIcon, headerText);
+
+      const closeBtn = document.createElement('button');
+      closeBtn.id = 'ps-close-x';
+      closeBtn.setAttribute('aria-label', 'Cancel and go back');
+      closeBtn.textContent = '✕';
+      modalHeader.append(headerLeft, closeBtn);
+
+      // ── Scrollable body ──
+      const body = document.createElement('div');
+      body.id = 'ps-body';
+
+      // Prompt display — built once, pills updated in-place on toggle
+      const promptEl = document.createElement('div');
+      promptEl.id = 'ps-prompt';
+
+      // Legend
+      const legend = document.createElement('div');
+      legend.className = 'legend';
+
+      const legendGreen = document.createElement('span');
+      legendGreen.className = 'legend-item';
+      const swatchGreen = document.createElement('span');
+      swatchGreen.className = 'swatch';
+      swatchGreen.style.cssText = 'background:#d1fae5;border:1.5px solid #059669;';
+      const labelGreen = document.createElement('span');
+      labelGreen.innerHTML = '<strong style="color:#065f46;">Green</strong> = hidden from AI';
+      legendGreen.append(swatchGreen, labelGreen);
+
+      const legendSep = document.createElement('span');
+      legendSep.className = 'legend-sep';
+      legendSep.textContent = '·';
+
+      const legendGrey = document.createElement('span');
+      legendGrey.className = 'legend-item';
+      const swatchGrey = document.createElement('span');
+      swatchGrey.className = 'swatch';
+      swatchGrey.style.cssText = 'background:#f1f5f9;border:1.5px solid #cbd5e1;';
+      const labelGrey = document.createElement('span');
+      labelGrey.innerHTML = '<strong style="color:#475569;">Grey</strong> = sent as-is';
+      legendGrey.append(swatchGrey, labelGrey);
+
+      legend.append(legendGreen, legendSep, legendGrey);
+      body.append(promptEl, legend);
+
+      // Actions
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.id = 'ps-cancel';
+      cancelBtn.textContent = 'Cancel';
+      const sendRawBtn = document.createElement('button');
+      sendRawBtn.id = 'ps-send-raw';
+      sendRawBtn.textContent = 'Send without redacting';
+      const sendBtn = document.createElement('button');
+      sendBtn.id = 'ps-send';
+      actions.append(cancelBtn, sendRawBtn, sendBtn);
+
+      box.append(modalHeader, body, actions);
+      overlay.appendChild(box);
+      shadow.append(styleEl, overlay);
+      document.body.appendChild(hostEl);
+
+      // ── Build prompt display — one Text/Element node per segment, pills as spans ──
+      // We keep references to each pill span so we can update them in-place
+      // instead of rebuilding innerHTML on every toggle (important for long prompts).
+      const pillEls: HTMLElement[] = [];
+
+      function buildPromptNodes() {
+        promptEl.innerHTML = '';
+        let cursor = 0;
+        matches.forEach((m, i) => {
+          if (m.index > cursor) {
+            promptEl.appendChild(document.createTextNode(original.slice(cursor, m.index)));
+          }
+          const pill = document.createElement('span');
+          pill.dataset.idx = String(i);
+          const sup = document.createElement('sup');
+          sup.textContent = m.type;
+          pill.append(document.createTextNode(m.match), sup);
+          pillEls.push(pill);
+          promptEl.appendChild(pill);
+          cursor = m.index + m.length;
+        });
+        if (cursor < original.length) {
+          promptEl.appendChild(document.createTextNode(original.slice(cursor)));
+        }
       }
+
+      // Update a single pill's appearance in-place — no full re-render
+      function updatePill(i: number) {
+        const pill = pillEls[i];
+        if (!pill) return;
+        if (redacting[i]) {
+          pill.className = 'pill-on';
+          pill.title = `Click to keep in message`;
+          pill.setAttribute('aria-label', `${matches[i].type} will be hidden. Click to send as-is.`);
+        } else {
+          pill.className = 'pill-off';
+          pill.title = `Click to hide from AI`;
+          pill.setAttribute('aria-label', `${matches[i].type} will be sent. Click to hide from AI.`);
+        }
+      }
+
+      function updateHeader() {
+        const n = redacting.filter(Boolean).length;
+        subtitle.textContent = n === 0
+          ? 'Everything will be sent to the AI. Tap any item to hide it.'
+          : `${n} item${n !== 1 ? 's' : ''} will be hidden. Tap any green item to reveal it.`;
+        sendBtn.textContent = n > 0 ? '🛡️ Send (with redaction)' : 'Send as-is';
+      }
+
+      buildPromptNodes();
+      matches.forEach((_, i) => updatePill(i)); // set initial styles
+      updateHeader();
+
+      function buildFinalText(): string {
+        const active = matches.filter((_, i) => redacting[i]);
+        if (active.length === 0) return original;
+        return redact(original, active, style).redacted;
+      }
+
+      // ── Focus trap — keep focus inside the shadow so typing doesn't reach the chat input ──
+      // Trap on the overlay element itself; the shadow root intercepts keyboard events.
+      overlay.setAttribute('tabindex', '-1');
+      // Focus the send button by default — pressing Enter confirms redacted send
+      setTimeout(() => sendBtn.focus(), 0);
+
+      // Re-trap if focus escapes (e.g. user Tabs to browser chrome and back)
+      shadow.addEventListener('focusout', (e: Event) => {
+        const fe = e as FocusEvent;
+        if (!shadow.contains(fe.relatedTarget as Node)) {
+          overlay.focus();
+        }
+      });
+
+      // Block all keyboard input from reaching the page while modal is open
+      shadow.addEventListener('keydown', (e: Event) => {
+        const ke = e as KeyboardEvent;
+        if (ke.key === 'Escape') { e.stopPropagation(); done('cancel'); }
+        // Let Tab cycle within the shadow naturally; stop everything else
+        if (ke.key !== 'Tab') e.stopPropagation();
+      }, true);
+
+      // ── Pill toggle — pointerdown for instant response ──
+      promptEl.addEventListener('pointerdown', (e) => {
+        const pill = (e.target as HTMLElement).closest<HTMLElement>('[data-idx]');
+        if (!pill) return;
+        e.preventDefault();
+        const idx = parseInt(pill.dataset.idx ?? '', 10);
+        if (isNaN(idx) || idx < 0 || idx >= redacting.length) return;
+        redacting[idx] = !redacting[idx];
+        updatePill(idx);
+        updateHeader();
+      });
+
+      // ── Cleanup & resolve ──
+      function cleanup() {
+        hostEl.remove();
+      }
+
+      function done(result: 'cancel' | string) {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve(result);
+      }
+
+      closeBtn.addEventListener('click', () => done('cancel'));
+      cancelBtn.addEventListener('click', () => done('cancel'));
+      sendRawBtn.addEventListener('click', () => {
+        sendRawBtn.disabled = true;
+        sendRawBtn.textContent = 'Sending…';
+        done(original);
+      });
+      sendBtn.addEventListener('click', () => {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending…';
+        done(buildFinalText());
+      });
+
+      // Click on dark backdrop = cancel
+      overlay.addEventListener('pointerdown', (e) => {
+        if (e.target === overlay) done('cancel');
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Text input detection — site-specific first, then generic fallbacks
+  // ---------------------------------------------------------------------------
+  function findActiveText(): HTMLElement | null {
+    const cfg = getSiteConfig();
+
+    if (cfg.inputSelector) {
+      const el = document.querySelector<HTMLElement>(cfg.inputSelector);
+      if (el) return el;
     }
 
-    // Try textarea
-    const ta = document.querySelector('textarea');
-    if(ta && (ta as HTMLTextAreaElement).value) return ta as HTMLElement;
+    // Generic fallbacks
+    const active = document.activeElement as HTMLElement | null;
+    if (active) {
+      if (active.tagName === 'TEXTAREA') return active;
+      if (active.tagName === 'INPUT' && /^(text|search|email|tel|url)$/i.test((active as HTMLInputElement).type)) return active;
+      if (active.isContentEditable) return active;
+      const ep = active.closest<HTMLElement>('[contenteditable="true"]');
+      if (ep) return ep;
+    }
 
-    // Try input fields
-    const inp = document.querySelector('input[type="text"], input[type="search"]');
-    if(inp && (inp as HTMLInputElement).value) return inp as HTMLElement;
+    const ce = document.querySelector<HTMLElement>('[contenteditable="true"]');
+    if (ce?.offsetParent && (ce.innerText || ce.textContent)) return ce;
 
-    console.log('[PromptShield] Could not find text input element');
+    const ta = document.querySelector<HTMLTextAreaElement>('textarea');
+    if (ta?.value) return ta;
+
     return null;
   }
 
-  async function handleSendInterception(e: Event | null, sendCallback: () => void){
-    const targetEl = findActiveText();
-    if(!targetEl) {
-      console.log('[PromptShield] No active text element found');
-      return sendCallback();
-    }
-    const text = (targetEl as any).isContentEditable ? targetEl.innerText : (targetEl as HTMLInputElement).value;
-    console.log('[PromptShield] Found text to check:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
-    const settings = await getSettings();
-    const matches = window.PromptShieldDetector.detectPII(text, {detectNames: settings.detectNames});
-    console.log('[PromptShield] PII matches found:', matches.length);
-    if(matches.length === 0) {
-      console.log('[PromptShield] No PII detected, allowing send');
-      return sendCallback();
-    }
-
-    const {redacted, map} = window.PromptShieldDetector.redact(text, matches, settings.style);
-    const modal = createModal(text, redacted, map);
-
-    modal.querySelector('#ps-send')!.addEventListener('click', ()=>{
-      if((targetEl as any).isContentEditable) (targetEl as any).innerText = redacted;
-      else (targetEl as HTMLInputElement).value = redacted;
-      modal.remove();
-      saveMap(map);
-      sendCallback();
-    });
-    modal.querySelector('#ps-send-anyway')!.addEventListener('click', ()=>{
-      modal.remove();
-      sendCallback();
-    });
-    modal.querySelector('#ps-cancel')!.addEventListener('click', ()=>{
-      modal.remove();
-    });
+  function getText(el: HTMLElement): string {
+    return el.isContentEditable ? (el.innerText || el.textContent || '') : (el as HTMLInputElement).value || '';
   }
 
-  function saveMap(map: any){
-    try{
-      const key = 'promptshield_map_history_v1';
-      if(chrome && chrome.storage && chrome.storage.local){
-        chrome.storage.local.get([key], (items: any)=>{
-          const arr = items[key] || [];
-          arr.unshift({time:Date.now(), map});
-          if(arr.length>50) arr.length = 50;
-          const obj: any = {};
-          obj[key] = arr;
-          chrome.storage.local.set(obj);
-        });
+  // Returns true if text was successfully written into the element.
+  function setText(el: HTMLElement, text: string): boolean {
+    try {
+      if (el.isContentEditable) {
+        // Verify element is still in the DOM and editable
+        if (!document.contains(el) || el.getAttribute('contenteditable') === 'false') return false;
+
+        el.focus();
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        // execCommand is deprecated but remains the only cross-framework way to
+        // trigger React/Vue onChange from a content script without monkey-patching.
+        const inserted = document.execCommand('insertText', false, text);
+        if (!inserted) {
+          // Fallback: direct assignment + InputEvent
+          el.innerText = text;
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
+        }
+        // Verify the text actually landed
+        const actual = el.innerText || el.textContent || '';
+        return actual.trim() === text.trim();
+      } else {
+        const input = el as HTMLInputElement;
+        if (!document.contains(input) || input.disabled || input.readOnly) return false;
+
+        // Use the native value setter so React's synthetic onChange fires
+        const nativeSetter =
+          Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ||
+          Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+        if (nativeSetter) {
+          nativeSetter.call(input, text);
+        } else {
+          input.value = text;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return input.value === text;
       }
-    }catch(err){console.warn(err)}
+    } catch {
+      return false;
+    }
   }
 
-  let globalClickHandler: any = null;
+  // ---------------------------------------------------------------------------
+  // Core interception logic
+  // ---------------------------------------------------------------------------
   let isHandlerActive = true;
 
-  function attachGlobalListeners(){
-    globalClickHandler = function(e: Event){
-      // Skip if handler is temporarily disabled
-      if(!isHandlerActive) return;
+  async function handleSend(sendCallback: () => void) {
+    // Disable immediately so rapid repeat events don't stack up
+    isHandlerActive = false;
+    try {
+      const settings = await getSettings();
+      if (isDisabledForCurrentHost(settings)) { sendCallback(); return; }
 
-      const el = e.target as HTMLElement;
+      const targetEl = findActiveText();
+      if (!targetEl) { sendCallback(); return; }
 
-      // Skip if this is inside our modal
-      if(el.closest && el.closest('#promptshield-modal')) {
-        console.log('[PromptShield] Click inside our modal, ignoring');
+      const text = getText(targetEl);
+      if (!text.trim()) { sendCallback(); return; }
+
+      const matches = detectPII(text, { detectNames: settings.detectNames });
+      if (matches.length === 0) { sendCallback(); return; }
+
+      // Show modal — all redaction happens inside createModal, nothing stored
+      const result = await createModal(text, matches, settings.style);
+
+      if (result === 'cancel') return; // user bailed — do not call sendCallback
+
+      const written = setText(targetEl, result);
+      if (!written) {
+        // Element was removed or became read-only between detection and redaction.
+        // Do not send — the original unredacted text would go out instead.
         return;
       }
+      sendCallback();
+    } finally {
+      // Always re-enable, whether we sent, cancelled, or threw
+      setTimeout(() => { isHandlerActive = true; }, 150);
+    }
+  }
 
-      const btn = el.closest && (el.closest('button,input[type="button"],input[type="submit"]') as HTMLElement | null);
-      if(!btn) return;
+  // ---------------------------------------------------------------------------
+  // Event listeners — click, keyboard, form submit
+  // ---------------------------------------------------------------------------
+  function isSendButton(el: HTMLElement): boolean {
+    const cfg = getSiteConfig();
 
-      // Collect all possible text sources from the button
-      const buttonText = (btn.innerText || (btn as HTMLInputElement).value || '').toLowerCase();
-      const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-      const title = (btn.getAttribute('title') || '').toLowerCase();
-      const dataTestId = (btn.getAttribute('data-testid') || '').toLowerCase();
+    // Try site-specific selector first
+    if (cfg.sendSelector) {
+      try { if (el.matches(cfg.sendSelector)) return true; } catch (_) {}
+      try { if (el.closest(cfg.sendSelector)) return true; } catch (_) {}
+    }
 
-      // Combine all text sources
-      const combinedText = `${buttonText} ${ariaLabel} ${title} ${dataTestId}`;
+    // Generic text-based heuristic as fallback
+    const text = [
+      el.innerText,
+      (el as HTMLInputElement).value,
+      el.getAttribute('aria-label'),
+      el.getAttribute('title'),
+      el.getAttribute('data-testid'),
+    ].filter(Boolean).join(' ').toLowerCase();
 
-      console.log('[PromptShield] Button clicked:', { buttonText, ariaLabel, title, dataTestId, combinedText });
+    return /\bsend|submit|reply|generate|ask\b/i.test(text);
+  }
 
-      // Check if any of the text sources match our pattern
-      if(/send|submit|reply|generate|ask|post|publish|share/i.test(combinedText)){
-        console.log('[PromptShield] Button matched send pattern, intercepting...');
-        // CRITICAL: Prevent the event IMMEDIATELY before any async work
-        e.preventDefault();
-        e.stopPropagation();
-        (e as any).stopImmediatePropagation && (e as any).stopImmediatePropagation();
+  function attachListeners() {
+    document.addEventListener('click', function (e: Event) {
+      if (!isHandlerActive) return;
+      const el = e.target as HTMLElement;
+      if (el.closest('#promptshield-host')) return;
 
-        handleSendInterception(e, ()=>{
-          console.log('[PromptShield] Executing send callback...');
-          // Temporarily disable our handler, trigger real click, then re-enable
-          isHandlerActive = false;
-          setTimeout(() => {
-            console.log('[PromptShield] Triggering actual send...');
-            btn.click();
-            // Re-enable handler after a short delay
-            setTimeout(() => {
-              isHandlerActive = true;
-              console.log('[PromptShield] Handler re-enabled');
-            }, 100);
-          }, 0);
-        });
-      }
-    };
+      const btn = el.closest<HTMLElement>('button, input[type="button"], input[type="submit"]');
+      if (!btn || !isSendButton(btn)) return;
 
-    document.addEventListener('click', globalClickHandler, true);
+      e.preventDefault();
+      e.stopPropagation();
+      (e as any).stopImmediatePropagation?.();
 
-    document.addEventListener('keydown', function(e){
-      if((e as KeyboardEvent).key === 'Enter' && ((e as KeyboardEvent).metaKey || (e as KeyboardEvent).ctrlKey)){
-        console.log('[PromptShield] Cmd/Ctrl+Enter detected, intercepting...');
-        handleSendInterception(e, ()=>{});
-      }
+      handleSend(() => {
+        isHandlerActive = false;
+        setTimeout(() => {
+          btn.click();
+          setTimeout(() => { isHandlerActive = true; }, 150);
+        }, 0);
+      });
     }, true);
 
-    // Fallback: intercept form submissions
-    document.addEventListener('submit', function(e){
-      console.log('[PromptShield] Form submit detected, intercepting...');
-      handleSendInterception(e, ()=>{
+    document.addEventListener('keydown', function (e: Event) {
+      if (!isHandlerActive) return;
+      const ke = e as KeyboardEvent;
+      if (ke.key !== 'Enter' || (!ke.metaKey && !ke.ctrlKey)) return;
+      if ((ke.target as HTMLElement)?.closest?.('#promptshield-host')) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      (e as any).stopImmediatePropagation?.();
+
+      handleSend(() => {
+        // Re-dispatch the original key combo after a tick
+        isHandlerActive = false;
+        setTimeout(() => {
+          const target = findActiveText();
+          if (target) {
+            target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: ke.metaKey, ctrlKey: ke.ctrlKey, bubbles: true }));
+          }
+          setTimeout(() => { isHandlerActive = true; }, 150);
+        }, 0);
+      });
+    }, true);
+
+    document.addEventListener('submit', function (e: Event) {
+      if (!isHandlerActive) return;
+      e.preventDefault();
+      handleSend(() => {
+        isHandlerActive = false;
         const form = e.target as HTMLFormElement;
-        if(form && form.submit) {
-          form.submit();
-        }
+        // Use requestSubmit so native validation still runs
+        setTimeout(() => {
+          try { form.requestSubmit(); } catch (_) { form.submit(); }
+          setTimeout(() => { isHandlerActive = true; }, 150);
+        }, 0);
       });
     }, true);
   }
 
-  function init(){
-    attachGlobalListeners();
-    console.log('PromptShield content script initialized');
+  // ---------------------------------------------------------------------------
+  // MutationObserver — reattach nothing (listeners are on document, so they
+  // survive DOM changes), but watch for SPA route changes that replace the
+  // whole input area so we can keep getSiteConfig() in sync.
+  // ---------------------------------------------------------------------------
+  function watchForSPANavigation() {
+    let lastHref = location.href;
+    new MutationObserver(() => {
+      if (location.href !== lastHref) {
+        lastHref = location.href;
+        // isHandlerActive may have been left false by a race — reset it
+        isHandlerActive = true;
+      }
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
-  init();
+  function init() {
+    attachListeners();
+    watchForSPANavigation();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
 
 export {};
