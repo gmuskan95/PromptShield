@@ -267,14 +267,7 @@ import { detectPII, redact } from './detector-core';
           transition: background 0.15s, border-color 0.15s;
         }
         #ps-cancel:hover { background: #f1f5f9; border-color: #cbd5e1; }
-        #ps-send-raw {
-          padding: 9px 16px; background: #fff; color: #64748b;
-          border: 1.5px solid #e2e8f0; border-radius: 9px;
-          cursor: pointer; font-size: 13px; font-weight: 500;
-          transition: background 0.15s, border-color 0.15s, color 0.15s;
-        }
-        #ps-send-raw:hover { background: #f8fafc; border-color: #94a3b8; color: #374151; }
-        #ps-send {
+#ps-send {
           padding: 9px 22px; background: #059669; color: #fff;
           border: none; border-radius: 9px;
           cursor: pointer; font-size: 13px; font-weight: 600;
@@ -387,12 +380,9 @@ import { detectPII, redact } from './detector-core';
       const cancelBtn = document.createElement('button');
       cancelBtn.id = 'ps-cancel';
       cancelBtn.textContent = 'Cancel';
-      const sendRawBtn = document.createElement('button');
-      sendRawBtn.id = 'ps-send-raw';
-      sendRawBtn.textContent = 'Send without redacting';
       const sendBtn = document.createElement('button');
       sendBtn.id = 'ps-send';
-      actions.append(cancelBtn, sendRawBtn, sendBtn);
+      actions.append(cancelBtn, sendBtn);
 
       box.append(modalHeader, body, actions);
       overlay.appendChild(box);
@@ -521,11 +511,6 @@ import { detectPII, redact } from './detector-core';
 
       closeBtn.addEventListener('click', () => done('cancel'));
       cancelBtn.addEventListener('click', () => done('cancel'));
-      sendRawBtn.addEventListener('click', () => {
-        sendRawBtn.disabled = true;
-        sendRawBtn.textContent = 'Sending…';
-        done(original);
-      });
       sendBtn.addEventListener('click', () => {
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending…';
