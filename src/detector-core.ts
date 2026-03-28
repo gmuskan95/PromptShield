@@ -36,13 +36,6 @@ const DEFAULT_PATTERNS: Array<{
     confidence: 'high',
   },
   {
-    // Require at least 10 digits total to avoid short number false positives
-    type: 'PHONE',
-    regex: /(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?|\d{2,4}[\s.-])?\d{3,4}[\s.-]?\d{4}/g,
-    confidence: 'medium',
-    validate: (m) => m.replace(/\D/g, '').length >= 10,
-  },
-  {
     type: 'IP_ADDRESS',
     regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
     confidence: 'high',
@@ -53,7 +46,8 @@ const DEFAULT_PATTERNS: Array<{
     confidence: 'high',
   },
   {
-    // Luhn-validated credit cards only
+    // Luhn-validated credit cards only — must run before PHONE so 16-digit card numbers
+    // aren't partially consumed by the phone heuristic first
     type: 'CREDIT_CARD',
     regex: /\b(?:\d[ -]*?){13,19}\b/g,
     confidence: 'high',
@@ -61,6 +55,13 @@ const DEFAULT_PATTERNS: Array<{
       const digits = m.replace(/\D/g, '');
       return digits.length >= 13 && digits.length <= 19 && luhn(digits);
     },
+  },
+  {
+    // Require at least 10 digits total to avoid short number false positives
+    type: 'PHONE',
+    regex: /(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?|\d{2,4}[\s.-])?\d{3,4}[\s.-]?\d{4}/g,
+    confidence: 'medium',
+    validate: (m) => m.replace(/\D/g, '').length >= 10,
   },
   {
     // AWS keys, JWTs, Stripe keys, GitHub tokens, generic high-entropy API keys

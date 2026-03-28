@@ -20,9 +20,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const save              = document.getElementById('save')            as HTMLButtonElement;
   const savedMsg          = document.getElementById('saved-msg')       as HTMLElement;
   const themeBtns         = document.querySelectorAll<HTMLButtonElement>('.theme-btn');
+  const blocklistEl       = document.getElementById('blocklist')       as HTMLTextAreaElement | null;
+  const alwaysRedactCbs   = document.querySelectorAll<HTMLInputElement>('input[data-always-redact]');
 
   // ── Load settings ──────────────────────────────────────────────────────────
-  const defaults = { detectNames: false, style: 'generic', theme: 'system', disabledHosts: [] as string[] };
+  const defaults = { detectNames: false, style: 'generic', theme: 'system', disabledHosts: [] as string[], blocklist: [] as string[], alwaysRedact: [] as string[] };
   let settings: typeof defaults = { ...defaults };
 
   if (chrome?.storage?.sync) {
@@ -39,6 +41,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   updatePreview();
   applyTheme(settings.theme || 'system');
   updateThemeBtns(settings.theme || 'system');
+
+  if (blocklistEl) {
+    blocklistEl.value = (settings.blocklist || []).join('\n');
+  }
+  alwaysRedactCbs.forEach(cb => {
+    cb.checked = (settings.alwaysRedact || []).includes(cb.dataset.alwaysRedact!);
+  });
 
   // ── Site toggle — only present in popup.html, not options.html ────────────
   if (siteEnabledToggle && siteHostnameEl && siteStatusEl && siteCard) {
@@ -131,6 +140,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   function persistSettings(showConfirmation: boolean) {
     settings.detectNames = detectNames.checked;
     settings.style       = styleSelect.value;
+
+    if (blocklistEl) {
+      settings.blocklist = blocklistEl.value
+        .split('\n')
+        .map((s: string) => s.trim())
+        .filter((s: string) => s.length > 0);
+    }
+    settings.alwaysRedact = Array.from(alwaysRedactCbs)
+      .filter(cb => cb.checked)
+      .map(cb => cb.dataset.alwaysRedact!);
 
     const obj: any = {};
     obj[SETTINGS_KEY] = settings;

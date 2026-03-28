@@ -408,6 +408,43 @@
           </div>
         </div>
 
+        <!-- Auto-redact -->
+        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:10px;">
+          <div class="setting-info">
+            <span class="setting-name">Auto-redact without asking</span>
+            <span class="setting-desc">These types are silently redacted every time</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px;width:100%;">
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="EMAIL" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Email
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="PHONE" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Phone
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="SSN" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> SSN
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="CREDIT_CARD" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Credit card
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="API_KEY" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> API key
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
+              <input type="checkbox" data-always-redact="CUSTOM" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Custom words
+            </label>
+          </div>
+        </div>
+
+        <!-- Custom blocklist -->
+        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="setting-info">
+            <span class="setting-name">Custom blocklist</span>
+            <span class="setting-desc">Words or phrases to always flag -- one per line</span>
+          </div>
+          <textarea id="blocklist" rows="3" placeholder="e.g. my-company-name&#10;Project X&#10;secret-term" style="width:100%;font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-3);color:var(--text);resize:vertical;font-family:inherit;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--brand)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+        </div>
+
         <!-- Redaction style -->
         <div class="setting-item">
           <div class="setting-info">

@@ -67,7 +67,14 @@ import { detectPII, redact } from './detector-core';
   // ---------------------------------------------------------------------------
   function getSettings(): Promise<any> {
     return new Promise(res => {
-      const defaults = { detectNames: false, style: 'generic', autoPreview: true, disabledHosts: [] as string[] };
+      const defaults = {
+        detectNames: false,
+        style: 'generic',
+        autoPreview: true,
+        disabledHosts: [] as string[],
+        blocklist: [] as string[],
+        alwaysRedact: [] as string[],
+      };
       if (chrome?.storage?.sync) {
         chrome.storage.sync.get([SETTINGS_KEY], (items: any) => {
           res(Object.assign(defaults, items[SETTINGS_KEY] || {}));
@@ -553,11 +560,72 @@ import { detectPII, redact } from './detector-core';
       const text = getText(targetEl);
       if (!text.trim()) { sendCallback(); return; }
 
-      const matches = detectPII(text, { detectNames: settings.detectNames });
+      let matches = detectPII(text, { detectNames: settings.detectNames });
+
+      // Inject custom blocklist matches as synthetic PII hits
+      const blocklist: string[] = Array.isArray(settings.blocklist) ? settings.blocklist : [];
+      for (const term of blocklist) {
+        const trimmed = term.trim();
+        if (!trimmed) continue;
+        let idx = 0;
+        while (true) {
+          const pos = text.indexOf(trimmed, idx);
+          if (pos === -1) break;
+          matches.push({ type: 'CUSTOM', match: trimmed, index: pos, length: trimmed.length, confidence: 'high' });
+          idx = pos + trimmed.length;
+        }
+      }
+
       if (matches.length === 0) { sendCallback(); return; }
 
+      // Sort matches by index so the prompt display and redaction are correct
+      matches.sort((a, b) => a.index - b.index);
+
+      // Remove overlapping matches (keep the first one by index)
+      matches = matches.filter((m, i) => {
+        if (i === 0) return true;
+        const prev = matches[i - 1];
+        return m.index >= prev.index + prev.length;
+      });
+
+      // Always-redact: auto-redact these types silently without showing the modal
+      const alwaysRedact: string[] = Array.isArray(settings.alwaysRedact) ? settings.alwaysRedact : [];
+      const autoMatches = matches.filter(m => alwaysRedact.includes(m.type));
+      const manualMatches = matches.filter(m => !alwaysRedact.includes(m.type));
+
+      let baseText = text;
+      if (autoMatches.length > 0) {
+        baseText = redact(text, autoMatches, settings.style).redacted;
+        // If all matches were auto-redacted, just send without modal
+        if (manualMatches.length === 0) {
+          const written = setText(targetEl, baseText);
+          if (!written) return;
+          sendCallback();
+          return;
+        }
+        // Re-detect on the redacted text so modal indices stay correct
+        matches = detectPII(baseText, { detectNames: settings.detectNames });
+        for (const term of blocklist) {
+          const trimmed = term.trim();
+          if (!trimmed) continue;
+          let idx = 0;
+          while (true) {
+            const pos = baseText.indexOf(trimmed, idx);
+            if (pos === -1) break;
+            matches.push({ type: 'CUSTOM', match: trimmed, index: pos, length: trimmed.length, confidence: 'high' });
+            idx = pos + trimmed.length;
+          }
+        }
+        matches.sort((a, b) => a.index - b.index);
+        matches = matches.filter((m, i) => {
+          if (i === 0) return true;
+          const prev = matches[i - 1];
+          return m.index >= prev.index + prev.length;
+        });
+      }
+
       // Show modal — all redaction happens inside createModal, nothing stored
-      const result = await createModal(text, matches, settings.style);
+      const result = await createModal(baseText, matches, settings.style);
 
       if (result === 'cancel') return; // user bailed — do not call sendCallback
 
@@ -673,6 +741,18 @@ import { detectPII, redact } from './detector-core';
       }
     }).observe(document.body, { childList: true, subtree: true });
   }
+
+  // Keyboard shortcut via background relay
+  chrome.runtime.onMessage.addListener((message: any) => {
+    if (message?.type === 'PROMPTSHIELD_TRIGGER' && isHandlerActive) {
+      handleSend(() => {
+        const target = findActiveText();
+        if (target) {
+          target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }));
+        }
+      });
+    }
+  });
 
   function init() {
     attachListeners();

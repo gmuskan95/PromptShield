@@ -33,6 +33,16 @@
   },
   "options_page": "options.html",
   "background": { "service_worker": "background.js" },
+  "commands": {
+    "trigger-promptshield": {
+      "suggested_key": {
+        "mac": "Command+Shift+S",
+        "windows": "Ctrl+Shift+S",
+        "linux": "Ctrl+Shift+S"
+      },
+      "description": "Trigger PromptShield scan manually"
+    }
+  },
   "content_scripts": [
     {
       "matches": [

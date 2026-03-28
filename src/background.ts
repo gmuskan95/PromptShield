@@ -6,12 +6,13 @@ chrome.runtime.onInstalled.addListener((details?: chrome.runtime.InstalledDetail
   }
 });
 
-// Simple message listener example (responds "pong" to "ping")
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message === 'ping') {
-    sendResponse('pong');
-    return false; // synchronous response
+// Keyboard shortcut — relay to the active tab's content script
+chrome.commands.onCommand.addListener((command: string) => {
+  if (command === 'trigger-promptshield') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs: chrome.tabs.Tab[]) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: 'PROMPTSHIELD_TRIGGER' });
+      }
+    });
   }
-  // return true if responding asynchronously
-  return false;
 });
