@@ -2,6 +2,7 @@ declare const chrome: any;
 import { detectPII, redact } from './detector-core';
 
 (function () {
+  console.log('[PromptShield] content script loaded on', location.hostname);
   const SETTINGS_KEY = 'promptshield_settings_v1';
 
   // ---------------------------------------------------------------------------
@@ -548,6 +549,7 @@ import { detectPII, redact } from './detector-core';
   let isHandlerActive = true;
 
   async function handleSend(sendCallback: () => void) {
+    console.log('[PromptShield] handleSend triggered');
     // Disable immediately so rapid repeat events don't stack up
     isHandlerActive = false;
     try {
@@ -691,9 +693,13 @@ import { detectPII, redact } from './detector-core';
     document.addEventListener('keydown', function (e: Event) {
       if (!isHandlerActive) return;
       const ke = e as KeyboardEvent;
-      if (ke.key !== 'Enter' || (!ke.metaKey && !ke.ctrlKey)) return;
+      if (ke.key !== 'Enter') return;
       if ((ke.target as HTMLElement)?.closest?.('#promptshield-host')) return;
 
+      // Shift+Enter = newline, never intercept
+      if (ke.shiftKey) return;
+
+      // Plain Enter OR Cmd/Ctrl+Enter — both used for send across different sites
       e.preventDefault();
       e.stopPropagation();
       (e as any).stopImmediatePropagation?.();
