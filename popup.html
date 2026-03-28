@@ -130,6 +130,20 @@
     #site-card.unsupported #site-hostname { color: var(--text-3); }
     #site-card.unsupported .toggle-label { opacity: 0.4; pointer-events: none; }
 
+    /* ── Stats bar ──────────────────────────────────────────────────────────── */
+    #stats-bar {
+      padding: 8px 16px;
+      background: var(--brand-light);
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    #stats-total {
+      font-size: 12px; font-weight: 600; color: var(--brand);
+    }
+    #stats-today {
+      font-size: 10.5px; color: var(--text-3);
+    }
+
     /* ── Settings section ───────────────────────────────────────────────────── */
     #settings { padding: 12px 16px 10px; display: flex; flex-direction: column; gap: 10px; }
 
@@ -249,6 +263,12 @@
         <div class="toggle-track"><div class="toggle-thumb"></div></div>
       </label>
     </div>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-bar">
+    <div id="stats-total">— items protected</div>
+    <div id="stats-today"></div>
   </div>
 
   <!-- Settings -->

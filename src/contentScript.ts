@@ -316,7 +316,13 @@ import { detectPII, redact } from './detector-core';
       legendGrey.append(swatchGrey, labelGrey);
 
       legend.append(legendGreen, legendSep, legendGrey);
-      body.append(promptEl, legend);
+
+      // Shift+Enter hint
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:11px;color:#94a3b8;text-align:right;margin-top:-6px;';
+      hint.textContent = 'Tip: Shift+Enter for a new line';
+
+      body.append(promptEl, legend, hint);
 
       // Actions
       const actions = document.createElement('div');
@@ -544,6 +550,31 @@ import { detectPII, redact } from './detector-core';
   }
 
   // ---------------------------------------------------------------------------
+  // Stats — counts only, no PII values ever stored
+  // ---------------------------------------------------------------------------
+  const STATS_KEY = 'promptshield_stats_v1';
+
+  function recordStats(matches: import('./detector-core').Match[]) {
+    if (!chrome?.storage?.local) return;
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    chrome.storage.local.get([STATS_KEY], (items: any) => {
+      const stats = items[STATS_KEY] || { total: 0, today: '', todayTypes: {} };
+      // Reset daily counts if it's a new day
+      if (stats.today !== today) {
+        stats.today = today;
+        stats.todayTypes = {};
+      }
+      stats.total = (stats.total || 0) + 1;
+      for (const m of matches) {
+        stats.todayTypes[m.type] = (stats.todayTypes[m.type] || 0) + 1;
+      }
+      chrome.storage.local.set({ [STATS_KEY]: stats });
+      // Update badge with today's interception count
+      chrome.runtime.sendMessage({ type: 'SET_BADGE', count: stats.total });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Core interception logic
   // ---------------------------------------------------------------------------
   let isHandlerActive = true;
@@ -637,6 +668,10 @@ import { detectPII, redact } from './detector-core';
         // Do not send — the original unredacted text would go out instead.
         return;
       }
+
+      // Record stats if anything was actually redacted
+      if (result !== baseText) recordStats(matches);
+
       sendCallback();
     } finally {
       // Always re-enable, whether we sent, cancelled, or threw

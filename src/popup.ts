@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const themeBtns         = document.querySelectorAll<HTMLButtonElement>('.theme-btn');
   const blocklistEl       = document.getElementById('blocklist')       as HTMLTextAreaElement | null;
   const alwaysRedactCbs   = document.querySelectorAll<HTMLInputElement>('input[data-always-redact]');
+  const statsTotalEl      = document.getElementById('stats-total')     as HTMLElement | null;
+  const statsTodayEl      = document.getElementById('stats-today')     as HTMLElement | null;
 
   // ── Load settings ──────────────────────────────────────────────────────────
   const defaults = { detectNames: false, style: 'generic', theme: 'system', disabledHosts: [] as string[], blocklist: [] as string[], alwaysRedact: [] as string[] };
@@ -48,6 +50,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   alwaysRedactCbs.forEach(cb => {
     cb.checked = (settings.alwaysRedact || []).includes(cb.dataset.alwaysRedact!);
   });
+
+  // ── Load stats ──────────────────────────────────────────────────────────────
+  if ((statsTotalEl || statsTodayEl) && chrome?.storage?.local) {
+    chrome.storage.local.get(['promptshield_stats_v1'], (items: any) => {
+      const stats = items['promptshield_stats_v1'] || { total: 0, today: '', todayTypes: {} };
+      if (statsTotalEl) {
+        statsTotalEl.textContent = `${stats.total || 0} item${stats.total !== 1 ? 's' : ''} protected`;
+      }
+      if (statsTodayEl) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (stats.today === today && stats.todayTypes && Object.keys(stats.todayTypes).length > 0) {
+          const parts = Object.entries(stats.todayTypes as Record<string, number>)
+            .map(([type, count]) => `${count} ${type.toLowerCase().replace('_', ' ')}`)
+            .join(', ');
+          statsTodayEl.textContent = `Today: ${parts}`;
+        } else {
+          statsTodayEl.textContent = 'Nothing caught today yet';
+        }
+      }
+    });
+  }
 
   // ── Site toggle — only present in popup.html, not options.html ────────────
   if (siteEnabledToggle && siteHostnameEl && siteStatusEl && siteCard) {
