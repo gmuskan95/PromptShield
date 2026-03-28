@@ -57,7 +57,7 @@ import { detectPII, redact } from './detector-core';
     },
     'notion.so': {
       inputSelector: '[contenteditable="true"][placeholder="Do anything with AI…"]',
-      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"], button[aria-label*="Submit"]',
+      sendSelector: '[aria-label="Submit AI message"]',
     },
     'slack.com': {
       inputSelector: '.ql-editor[contenteditable="true"], [data-qa="message_input"] [contenteditable="true"]',
