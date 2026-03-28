@@ -213,6 +213,12 @@
     .saved-msg { font-size: 12.5px; color: var(--brand); opacity: 0; transition: opacity 0.3s; display: flex; align-items: center; gap: 5px; font-weight: 500; }
     .saved-msg.show { opacity: 1; }
 
+    .setting-item--col { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .setting-item--gap8 { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .always-redact-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px 16px; width: 100%; }
+    .ar-label { display: flex; align-items: center; gap: 7px; cursor: pointer; font-size: 13px; color: var(--text-2); }
+    .ar-cb { accent-color: var(--brand); width: 14px; height: 14px; cursor: pointer; }
+
     .blocklist-input {
       width: 100%; font-size: 12.5px; padding: 8px 10px;
       border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -259,33 +265,21 @@
             </label>
           </div>
         </div>
-        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:10px;">
+        <div class="setting-item setting-item--col">
           <div class="setting-info">
             <span class="setting-name">Auto-redact without asking</span>
             <span class="setting-desc">These types are silently redacted — no modal shown</span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px 16px;width:100%;">
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="EMAIL" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Email
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="PHONE" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Phone
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="SSN" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> SSN
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="CREDIT_CARD" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Credit card
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="API_KEY" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> API key
-            </label>
-            <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text-2);">
-              <input type="checkbox" data-always-redact="CUSTOM" style="accent-color:var(--brand);width:14px;height:14px;cursor:pointer;"> Custom words
-            </label>
+          <div class="always-redact-grid">
+            <label class="ar-label"><input type="checkbox" data-always-redact="EMAIL" class="ar-cb"> Email</label>
+            <label class="ar-label"><input type="checkbox" data-always-redact="PHONE" class="ar-cb"> Phone</label>
+            <label class="ar-label"><input type="checkbox" data-always-redact="SSN" class="ar-cb"> SSN</label>
+            <label class="ar-label"><input type="checkbox" data-always-redact="CREDIT_CARD" class="ar-cb"> Credit card</label>
+            <label class="ar-label"><input type="checkbox" data-always-redact="API_KEY" class="ar-cb"> API key</label>
+            <label class="ar-label"><input type="checkbox" data-always-redact="CUSTOM" class="ar-cb"> Custom words</label>
           </div>
         </div>
-        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:8px;">
+        <div class="setting-item setting-item--col setting-item--gap8">
           <div class="setting-info">
             <span class="setting-name">Custom blocklist</span>
             <span class="setting-desc">Words or phrases to always flag — one per line</span>

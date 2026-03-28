@@ -210,6 +210,12 @@
     #save:hover { background: var(--brand-dark); box-shadow: 0 2px 8px var(--brand-glow); }
     #save:active { transform: scale(0.97); }
 
+    .subsetting-group { display: flex; flex-direction: column; gap: 5px; }
+    .subsetting-label { margin-bottom: 2px; }
+    .ar-grid-popup { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+    .ar-cb { accent-color: var(--brand); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+    .ar-text { font-size: 11.5px; }
+
     .blocklist-input {
       font-size: 11.5px; padding: 6px 8px;
       border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -259,22 +265,22 @@
     <div class="divider"></div>
 
     <!-- Always redact -->
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <span class="setting-label" style="margin-bottom:2px;">Auto-redact without asking</span>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;">
-        <label class="check-row"><input type="checkbox" data-always-redact="EMAIL"> <span class="setting-label" style="font-size:11.5px;">Email</span></label>
-        <label class="check-row"><input type="checkbox" data-always-redact="PHONE"> <span class="setting-label" style="font-size:11.5px;">Phone</span></label>
-        <label class="check-row"><input type="checkbox" data-always-redact="SSN"> <span class="setting-label" style="font-size:11.5px;">SSN</span></label>
-        <label class="check-row"><input type="checkbox" data-always-redact="CREDIT_CARD"> <span class="setting-label" style="font-size:11.5px;">Credit card</span></label>
-        <label class="check-row"><input type="checkbox" data-always-redact="API_KEY"> <span class="setting-label" style="font-size:11.5px;">API key</span></label>
-        <label class="check-row"><input type="checkbox" data-always-redact="CUSTOM"> <span class="setting-label" style="font-size:11.5px;">Custom words</span></label>
+    <div class="subsetting-group">
+      <span class="setting-label subsetting-label">Auto-redact without asking</span>
+      <div class="ar-grid-popup">
+        <label class="check-row"><input type="checkbox" data-always-redact="EMAIL" class="ar-cb"> <span class="setting-label ar-text">Email</span></label>
+        <label class="check-row"><input type="checkbox" data-always-redact="PHONE" class="ar-cb"> <span class="setting-label ar-text">Phone</span></label>
+        <label class="check-row"><input type="checkbox" data-always-redact="SSN" class="ar-cb"> <span class="setting-label ar-text">SSN</span></label>
+        <label class="check-row"><input type="checkbox" data-always-redact="CREDIT_CARD" class="ar-cb"> <span class="setting-label ar-text">Credit card</span></label>
+        <label class="check-row"><input type="checkbox" data-always-redact="API_KEY" class="ar-cb"> <span class="setting-label ar-text">API key</span></label>
+        <label class="check-row"><input type="checkbox" data-always-redact="CUSTOM" class="ar-cb"> <span class="setting-label ar-text">Custom words</span></label>
       </div>
     </div>
 
     <div class="divider"></div>
 
     <!-- Blocklist -->
-    <div style="display:flex;flex-direction:column;gap:5px;">
+    <div class="subsetting-group">
       <span class="setting-label">Custom blocklist <span class="setting-hint">one per line</span></span>
       <textarea id="blocklist" rows="3" placeholder="e.g. my-company-name&#10;Project X&#10;secret-term" class="blocklist-input"></textarea>
     </div>
