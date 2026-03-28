@@ -127,11 +127,34 @@ export function detectPII(text: string, options: { detectNames?: boolean } = {})
   }
 
   if (options.detectNames) {
+    // Common English words that should never be treated as names
+    const STOPWORDS = new Set([
+      'working','trying','going','doing','using','looking','getting','having','making',
+      'taking','coming','being','seeing','saying','thinking','knowing','feeling','showing',
+      'letting','telling','asking','giving','helping','finding','leaving','sending',
+      'meeting','building','running','writing','reading','playing','moving','starting',
+      'talking','waiting','calling','setting','turning','hearing','keeping','putting',
+      'thank','thanks','hello','please','sorry','great','good','well','just','also',
+      'very','really','actually','already','still','even','back','here','there','then',
+      'your','their','about','after','before','between','through','during','without',
+      'against','myself','yourself','himself','herself','itself','ourselves','themselves',
+      'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+      'january','february','march','april','june','july','august','september',
+      'october','november','december',
+    ]);
+
+    function isLikelyName(word: string): boolean {
+      return !STOPWORDS.has(word.toLowerCase());
+    }
+
     // Capitalized two-word names
     const capRegex = /\b([A-Z][a-z]{1,}\s+[A-Z][a-z]{1,})\b/g;
     let mm: RegExpExecArray | null;
     while ((mm = capRegex.exec(text)) !== null) {
-      matches.push({ type: 'NAME', match: mm[0], index: mm.index, length: mm[0].length, confidence: 'low' });
+      const words = mm[0].split(/\s+/);
+      if (words.every(isLikelyName)) {
+        matches.push({ type: 'NAME', match: mm[0], index: mm.index, length: mm[0].length, confidence: 'low' });
+      }
     }
     // Context-triggered names: "my name is ...", "I'm ...", etc.
     // Group 1 = the trigger phrase+space, group 2 = the name — compute index arithmetically
@@ -141,7 +164,10 @@ export function detectPII(text: string, options: { detectNames?: boolean } = {})
     while ((mm2 = ctxRegex.exec(text)) !== null) {
       const nameMatch = mm2[2];
       const nameIndex = mm2.index + mm2[1].length;
-      matches.push({ type: 'NAME', match: nameMatch, index: nameIndex, length: nameMatch.length, confidence: 'medium' });
+      const words = nameMatch.split(/\s+/);
+      if (words.every(isLikelyName)) {
+        matches.push({ type: 'NAME', match: nameMatch, index: nameIndex, length: nameMatch.length, confidence: 'medium' });
+      }
     }
   }
 

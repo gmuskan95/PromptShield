@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const alwaysRedactCbs   = document.querySelectorAll<HTMLInputElement>('input[data-always-redact]');
   const statsTotalEl      = document.getElementById('stats-total')     as HTMLElement | null;
   const statsTodayEl      = document.getElementById('stats-today')     as HTMLElement | null;
+  const exportBtn         = document.getElementById('export-settings') as HTMLButtonElement | null;
+  const importBtn         = document.getElementById('import-settings') as HTMLButtonElement | null;
+  const importFile        = document.getElementById('import-file')     as HTMLInputElement | null;
 
   // ── Load settings ──────────────────────────────────────────────────────────
   const defaults = { detectNames: false, style: 'generic', theme: 'system', disabledHosts: [] as string[], blocklist: [] as string[], alwaysRedact: [] as string[] };
@@ -156,6 +159,50 @@ document.addEventListener('DOMContentLoaded', async () => {
       persistSettings(false); // save theme instantly, no confirmation flash
     });
   });
+
+  // ── Export settings ────────────────────────────────────────────────────────
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'promptshield-settings.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // ── Import settings ────────────────────────────────────────────────────────
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', () => {
+      const file = importFile.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target?.result as string);
+          settings = Object.assign(defaults, imported);
+          // Re-apply UI
+          detectNames.checked   = !!settings.detectNames;
+          styleSelect.value     = settings.style || 'generic';
+          applyTheme(settings.theme || 'system');
+          updateThemeBtns(settings.theme || 'system');
+          updatePreview();
+          if (blocklistEl) blocklistEl.value = (settings.blocklist || []).join('\n');
+          alwaysRedactCbs.forEach(cb => {
+            cb.checked = (settings.alwaysRedact || []).includes(cb.dataset.alwaysRedact!);
+          });
+          persistSettings(true);
+        } catch (_) {
+          alert('Invalid settings file.');
+        }
+      };
+      reader.readAsText(file);
+      importFile.value = '';
+    });
+  }
 
   // ── Save settings ──────────────────────────────────────────────────────────
   save.addEventListener('click', () => persistSettings(true));

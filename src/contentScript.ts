@@ -55,6 +55,30 @@ import { detectPII, redact } from './detector-core';
       inputSelector: 'textarea',
       sendSelector: 'button[id*="send"]',
     },
+    'notion.so': {
+      inputSelector: '[contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"]',
+    },
+    'slack.com': {
+      inputSelector: '.ql-editor[contenteditable="true"], [data-qa="message_input"] [contenteditable="true"]',
+      sendSelector: 'button[data-qa="texty_send_button"]',
+    },
+    'linear.app': {
+      inputSelector: '[contenteditable="true"]',
+      sendSelector: 'button[type="submit"]',
+    },
+    'github.com': {
+      inputSelector: '#copilot-chat-input, textarea[name="copilot-chat-input"], [contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"]',
+    },
+    'teams.microsoft.com': {
+      inputSelector: '[contenteditable="true"][aria-label*="message"], div[role="textbox"]',
+      sendSelector: 'button[aria-label*="Send"]',
+    },
+    'intercom.com': {
+      inputSelector: '[contenteditable="true"]',
+      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"]',
+    },
   };
 
   function getSiteConfig() {
@@ -204,15 +228,33 @@ import { detectPII, redact } from './detector-core';
           text-decoration: none; opacity: 0.75; vertical-align: super;
           letter-spacing: 0.3px;
         }
+        .conf-dot {
+          display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+          margin-left: 3px; vertical-align: middle; flex-shrink: 0;
+        }
+        .conf-high  { background: #059669; }
+        .conf-medium { background: #f59e0b; }
+        .conf-low   { background: #94a3b8; }
+        .legend-row {
+          display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+        }
         .legend {
           font-size: 11.5px; color: #64748b;
           display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
           padding: 8px 12px; background: #f8fafc; border-radius: 8px;
-          border: 1px solid #e2e8f0;
+          border: 1px solid #e2e8f0; flex: 1;
         }
         .legend-item { display: inline-flex; align-items: center; gap: 5px; }
         .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
         .legend-sep { color: #cbd5e1; }
+        .toggle-all-btns { display: flex; gap: 5px; flex-shrink: 0; }
+        .toggle-all-btn {
+          font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer;
+          border: 1px solid #e2e8f0; background: #f8fafc; color: #475569;
+          font-weight: 500; white-space: nowrap;
+          transition: background 0.12s, border-color 0.12s;
+        }
+        .toggle-all-btn:hover { background: #e2e8f0; border-color: #cbd5e1; }
         .actions {
           display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
           padding: 12px 20px; border-top: 1px solid #e2e8f0;
@@ -317,12 +359,27 @@ import { detectPII, redact } from './detector-core';
 
       legend.append(legendGreen, legendSep, legendGrey);
 
+      // Redact all / Reveal all buttons
+      const toggleAllBtns = document.createElement('div');
+      toggleAllBtns.className = 'toggle-all-btns';
+      const redactAllBtn = document.createElement('button');
+      redactAllBtn.className = 'toggle-all-btn';
+      redactAllBtn.textContent = 'Redact all';
+      const revealAllBtn = document.createElement('button');
+      revealAllBtn.className = 'toggle-all-btn';
+      revealAllBtn.textContent = 'Reveal all';
+      toggleAllBtns.append(redactAllBtn, revealAllBtn);
+
+      const legendRow = document.createElement('div');
+      legendRow.className = 'legend-row';
+      legendRow.append(legend, toggleAllBtns);
+
       // Shift+Enter hint
       const hint = document.createElement('div');
       hint.style.cssText = 'font-size:11px;color:#94a3b8;text-align:right;margin-top:-6px;';
       hint.textContent = 'Tip: Shift+Enter for a new line';
 
-      body.append(promptEl, legend, hint);
+      body.append(promptEl, legendRow, hint);
 
       // Actions
       const actions = document.createElement('div');
@@ -358,6 +415,10 @@ import { detectPII, redact } from './detector-core';
           pill.dataset.idx = String(i);
           const sup = document.createElement('sup');
           sup.textContent = m.type;
+          const dot = document.createElement('span');
+          dot.className = `conf-dot conf-${m.confidence}`;
+          dot.title = `${m.confidence} confidence`;
+          sup.appendChild(dot);
           pill.append(document.createTextNode(m.match), sup);
           pillEls.push(pill);
           promptEl.appendChild(pill);
@@ -432,6 +493,17 @@ import { detectPII, redact } from './detector-core';
         if (isNaN(idx) || idx < 0 || idx >= redacting.length) return;
         redacting[idx] = !redacting[idx];
         updatePill(idx);
+        updateHeader();
+      });
+
+      redactAllBtn.addEventListener('click', () => {
+        redacting.fill(true);
+        matches.forEach((_, i) => updatePill(i));
+        updateHeader();
+      });
+      revealAllBtn.addEventListener('click', () => {
+        redacting.fill(false);
+        matches.forEach((_, i) => updatePill(i));
         updateHeader();
       });
 

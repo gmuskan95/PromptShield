@@ -209,6 +209,14 @@
       border-top: 1px solid var(--border);
       background: var(--bg-2);
     }
+    .footer-btns { display: flex; align-items: center; gap: 6px; }
+    .footer-link-btn {
+      padding: 5px 10px; background: transparent; color: var(--text-3);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      cursor: pointer; font-size: 11.5px; font-weight: 500;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .footer-link-btn:hover { color: var(--text-2); border-color: var(--text-3); }
     .saved-msg { font-size: 11.5px; color: var(--brand); opacity: 0; transition: opacity 0.3s; display: flex; align-items: center; gap: 4px; }
     .saved-msg.show { opacity: 1; }
 
@@ -335,7 +343,12 @@
   <!-- Footer -->
   <div id="footer">
     <span class="saved-msg" id="saved-msg">✓ Saved</span>
-    <button id="save">Save</button>
+    <div class="footer-btns">
+      <button id="export-settings" class="footer-link-btn" title="Export settings as JSON">Export</button>
+      <button id="import-settings" class="footer-link-btn" title="Import settings from JSON">Import</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+      <button id="save">Save</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
