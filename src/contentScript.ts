@@ -781,7 +781,7 @@ import { detectPII, redact } from './detector-core';
       const el = e.target as HTMLElement;
       if (el.closest('#promptshield-host')) return;
 
-      const btn = el.closest<HTMLElement>('button, input[type="button"], input[type="submit"]');
+      const btn = el.closest<HTMLElement>('button, input[type="button"], input[type="submit"], [role="button"]');
       if (!btn || !isSendButton(btn)) return;
 
       e.preventDefault();
