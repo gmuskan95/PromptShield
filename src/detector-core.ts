@@ -64,10 +64,13 @@ const DEFAULT_PATTERNS: Array<{
     validate: (m) => m.replace(/\D/g, '').length >= 10,
   },
   {
-    // AWS keys, JWTs, Stripe keys, GitHub tokens, generic high-entropy API keys
-    // JWT pattern requires 3 dot-separated base64url segments (header.payload.signature)
+    // Prefix-based API key detection — each provider intentionally uses a
+    // distinctive prefix so secret scanners (and we) can catch them precisely.
+    // Covers: AWS, JWT, Anthropic, OpenAI, Stripe, GitHub, GitLab, Slack,
+    //         Hugging Face, Replicate, Google, Pinecone, LinkedIn, SendGrid,
+    //         Mailgun, Twilio, generic api_/apr_ prefixes.
     type: 'API_KEY',
-    regex: /\b(?:AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}|sk_(?:live|test)_[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|glpat-[a-zA-Z0-9_-]{20,}|xox[baprs]-[a-zA-Z0-9-]{10,})[a-zA-Z0-9._-]*/g,
+    regex: /\b(?:AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}|sk-ant-(?:api03-)?[a-zA-Z0-9_-]{20,}|sk-(?:proj-|live_|test_)?[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|glpat-[a-zA-Z0-9_-]{20,}|xox[baprs]-[a-zA-Z0-9-]{10,}|hf_[a-zA-Z0-9]{30,}|r8_[a-zA-Z0-9]{36}|AIza[a-zA-Z0-9_-]{35}|pcsk_[a-zA-Z0-9_]{40,}|pat-na[0-9]-[a-zA-Z0-9_-]{40,}|SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}|key-[a-zA-Z0-9]{32}|AC[a-zA-Z0-9]{32}|SK[a-zA-Z0-9]{32}|ap[ir]_[a-zA-Z0-9_-]{30,})[a-zA-Z0-9._-]*/g,
     confidence: 'high',
   },
   {
@@ -168,6 +171,33 @@ export function detectPII(text: string, options: { detectNames?: boolean } = {})
       if (words.every(isLikelyName)) {
         matches.push({ type: 'NAME', match: nameMatch, index: nameIndex, length: nameMatch.length, confidence: 'medium' });
       }
+    }
+  }
+
+  // Context-triggered high-entropy token detection — catches generic API keys,
+  // tokens, secrets, and passwords that follow a context keyword.
+  // We require: keyword → optional separator (=, :, space) → token 20+ chars
+  // with at least 3 distinct character classes (upper, lower, digit, symbol).
+  {
+    // Separator: = : " space, OR the word "is"/"was"/":" with surrounding spaces
+    const ctxKeyRx = /\b(?:api[_-]?key|apikey|api[_-]?token|access[_-]?token|auth[_-]?token|bearer|secret[_-]?key|secret|private[_-]?key|password|passwd|token|authorization|credential)\s*(?:[=:"']|\bis\b|\bwas\b)?\s*([a-zA-Z0-9+/=_\-\.!@#$%^&*]{20,})/gi;
+    let km: RegExpExecArray | null;
+    while ((km = ctxKeyRx.exec(text)) !== null) {
+      const token = km[1];
+      const tokenIndex = km.index + km[0].length - token.length;
+      // Count character classes present
+      let classes = 0;
+      if (/[a-z]/.test(token)) classes++;
+      if (/[A-Z]/.test(token)) classes++;
+      if (/[0-9]/.test(token)) classes++;
+      if (/[^a-zA-Z0-9]/.test(token)) classes++; // any symbol counts
+      if (classes < 3) continue;
+      // Skip if already covered by a prefix-based match
+      const alreadyCovered = matches.some(
+        m => m.type === 'API_KEY' && m.index <= tokenIndex && tokenIndex < m.index + m.length
+      );
+      if (alreadyCovered) continue;
+      matches.push({ type: 'API_KEY', match: token, index: tokenIndex, length: token.length, confidence: 'medium' });
     }
   }
 

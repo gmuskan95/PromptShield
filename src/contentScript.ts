@@ -6,84 +6,18 @@ import { detectPII, redact } from './detector-core';
   const SETTINGS_KEY = 'promptshield_settings_v1';
 
   // ---------------------------------------------------------------------------
-  // Per-site selectors — precise targeting beats generic text matching
-  // Each site can declare inputSelector and/or sendSelector.
-  // Falls back to generic heuristics if neither fires.
+  // Per-site input overrides — only for sites where generic detection is
+  // genuinely ambiguous (e.g. Notion's broad contenteditable). No send selectors
+  // here — button detection is fully heuristic so it never needs updating.
   // ---------------------------------------------------------------------------
-  const SITE_CONFIGS: Record<string, { inputSelector?: string; sendSelector?: string }> = {
-    'chat.openai.com': {
-      inputSelector: '#prompt-textarea',
-      sendSelector: '[data-testid="send-button"]',
-    },
-    'chatgpt.com': {
-      inputSelector: '#prompt-textarea',
-      sendSelector: '[data-testid="send-button"]',
-    },
-    'claude.ai': {
-      inputSelector: '[contenteditable="true"]',
-      sendSelector: 'button[aria-label*="Send"]',
-    },
-    'gemini.google.com': {
-      inputSelector: '.ql-editor[contenteditable="true"]',
-      sendSelector: 'button[aria-label*="Send"]',
-    },
-    'perplexity.ai': {
-      inputSelector: 'textarea[placeholder]',
-      sendSelector: 'button[aria-label*="Submit"]',
-    },
-    'copilot.microsoft.com': {
-      inputSelector: 'textarea[name="q"], [contenteditable="true"]',
-      sendSelector: 'button[aria-label*="Submit"], button[aria-label*="Send"]',
-    },
-    'you.com': {
-      inputSelector: 'textarea[id*="search"]',
-      sendSelector: 'button[type="submit"]',
-    },
-    'poe.com': {
-      inputSelector: 'textarea[class*="GrowingTextArea"]',
-      sendSelector: 'button[class*="SendButton"]',
-    },
-    'huggingface.co': {
-      inputSelector: 'textarea',
-      sendSelector: 'button[type="submit"]',
-    },
-    'chat.mistral.ai': {
-      inputSelector: 'textarea',
-      sendSelector: 'button[type="submit"]',
-    },
-    'chat.lmsys.org': {
-      inputSelector: 'textarea',
-      sendSelector: 'button[id*="send"]',
-    },
-    'notion.so': {
-      inputSelector: '[contenteditable="true"][placeholder="Do anything with AI…"]',
-      sendSelector: '[aria-label="Submit AI message"]',
-    },
-    'slack.com': {
-      inputSelector: '.ql-editor[contenteditable="true"], [data-qa="message_input"] [contenteditable="true"]',
-      sendSelector: 'button[data-qa="texty_send_button"]',
-    },
-    'linear.app': {
-      inputSelector: '[contenteditable="true"]',
-      sendSelector: 'button[type="submit"]',
-    },
-    'github.com': {
-      inputSelector: '#copilot-chat-input, textarea[name="copilot-chat-input"], [contenteditable="true"]',
-      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"]',
-    },
-    'teams.microsoft.com': {
-      inputSelector: '[contenteditable="true"][aria-label*="message"], div[role="textbox"]',
-      sendSelector: 'button[aria-label*="Send"]',
-    },
-    'intercom.com': {
-      inputSelector: '[contenteditable="true"]',
-      sendSelector: 'button[aria-label*="Send"], button[data-testid*="send"]',
-    },
+  const INPUT_OVERRIDES: Record<string, string> = {
+    // Notion has hundreds of contenteditables; narrow to the AI prompt box
+    'notion.so': '[contenteditable="true"][placeholder="Do anything with AI…"]',
   };
 
-  function getSiteConfig() {
+  function getInputOverride(): string | undefined {
     const host = location.hostname.replace(/^www\./, '');
-    return SITE_CONFIGS[host] || {};
+    return INPUT_OVERRIDES[host];
   }
 
   // ---------------------------------------------------------------------------
@@ -525,17 +459,10 @@ import { detectPII, redact } from './detector-core';
   }
 
   // ---------------------------------------------------------------------------
-  // Text input detection — site-specific first, then generic fallbacks
+  // Text input detection — activeElement first, override selector as fallback
   // ---------------------------------------------------------------------------
   function findActiveText(): HTMLElement | null {
-    const cfg = getSiteConfig();
-
-    if (cfg.inputSelector) {
-      const el = document.querySelector<HTMLElement>(cfg.inputSelector);
-      if (el) return el;
-    }
-
-    // Generic fallbacks
+    // 1. Trust the focused element — it's always correct at send time
     const active = document.activeElement as HTMLElement | null;
     if (active) {
       if (active.tagName === 'TEXTAREA') return active;
@@ -545,6 +472,14 @@ import { detectPII, redact } from './detector-core';
       if (ep) return ep;
     }
 
+    // 2. Site override — only for sites where the DOM is genuinely ambiguous
+    const override = getInputOverride();
+    if (override) {
+      const el = document.querySelector<HTMLElement>(override);
+      if (el) return el;
+    }
+
+    // 3. Last-resort DOM scan
     const ce = document.querySelector<HTMLElement>('[contenteditable="true"]');
     if (ce?.offsetParent && (ce.innerText || ce.textContent)) return ce;
 
@@ -740,15 +675,7 @@ import { detectPII, redact } from './detector-core';
   // Event listeners — click, keyboard, form submit
   // ---------------------------------------------------------------------------
   function isSendButton(el: HTMLElement): boolean {
-    const cfg = getSiteConfig();
-
-    // Try site-specific selector first
-    if (cfg.sendSelector) {
-      try { if (el.matches(cfg.sendSelector)) return true; } catch (_) {}
-      try { if (el.closest(cfg.sendSelector)) return true; } catch (_) {}
-    }
-
-    // Generic text-based heuristic as fallback
+    // Pure heuristics — no hardcoded selectors that break when sites redeploy
     const text = [
       el.innerText,
       (el as HTMLInputElement).value,
