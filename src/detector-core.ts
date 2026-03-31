@@ -57,11 +57,24 @@ const DEFAULT_PATTERNS: Array<{
     },
   },
   {
-    // Require at least 10 digits total to avoid short number false positives
+    // Require at least 10 digits total to avoid short number false positives.
+    // If a +country code is present, validate it's a real ITU prefix (1-3 digits,
+    // not 000/999 or other unused ranges).
     type: 'PHONE',
     regex: /(?:\+\d{1,3}[\s.-]?)?(?:\(\d{2,4}\)[\s.-]?|\d{2,4}[\s.-])?\d{3,4}[\s.-]?\d{4}/g,
     confidence: 'medium',
-    validate: (m) => m.replace(/\D/g, '').length >= 10,
+    validate: (m) => {
+      if (m.replace(/\D/g, '').length < 10) return false;
+      const ccMatch = m.match(/^\+(\d{1,3})/);
+      if (ccMatch) {
+        const cc = parseInt(ccMatch[1], 10);
+        // ITU-T E.164: valid country codes are 1–999 excluding known unassigned ranges
+        if (cc === 0 || cc > 999) return false;
+        // Reject obviously fake prefixes: 000, 999, and 8xx reserved ranges
+        if (cc === 0 || (cc >= 800 && cc <= 809) || cc === 999) return false;
+      }
+      return true;
+    },
   },
   {
     // Prefix-based API key detection — each provider intentionally uses a
@@ -146,7 +159,7 @@ export function detectPII(text: string, options: { detectNames?: boolean } = {})
   // Detect UUIDs inside URL paths — flag them so they get redacted while
   // the rest of the URL stays intact.
   {
-    const uuidRx = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    const uuidRx = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
     let um: RegExpExecArray | null;
     while ((um = uuidRx.exec(text)) !== null) {
       if (insideUrlPath(um.index, um[0].length)) {
@@ -191,6 +204,21 @@ export function detectPII(text: string, options: { detectNames?: boolean } = {})
       'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
       'january','february','march','april','june','july','august','september',
       'october','november','december',
+      // Tech terms that appear capitalized but are never names
+      'python','pandas','numpy','react','angular','vue','svelte','django','flask',
+      'fastapi','express','nextjs','nodejs','typescript','javascript','golang',
+      'kubernetes','docker','terraform','ansible','jenkins','github','gitlab',
+      'postgres','mongodb','mysql','redis','elasticsearch','kafka','rabbitmq',
+      'aws','gcp','azure','lambda','cloudfront','dynamodb','firebase','supabase',
+      'openai','anthropic','gemini','mistral','ollama','langchain','llamaindex',
+      'linux','ubuntu','debian','windows','macos','android','ios',
+      'chrome','firefox','safari','webpack','vite','eslint','prettier',
+      'dashboard','overview','summary','report','analysis','results','output',
+      'settings','config','configure','setup','install','deploy','release',
+      'version','update','upgrade','migration','refactor','feature','bugfix',
+      'alpha','beta','gamma','delta','sigma','omega',
+      'project','module','service','component','interface','abstract','default',
+      'public','private','static','async','await','import','export',
     ]);
 
     function isLikelyName(word: string): boolean {
