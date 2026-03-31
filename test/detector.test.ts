@@ -93,10 +93,25 @@ describe('API_KEY', () => {
   it('detects an AWS AKIA key', () => {
     expect(types('key=AKIAIOSFODNN7EXAMPLE')).toContain('API_KEY');
   });
-  it('detects a Stripe-style live key', () => {
+  it('detects a Stripe-style live key (underscore variant)', () => {
     // deliberately split to avoid triggering GitHub secret scanning on the test file itself
     const key = 'sk_li' + 've_abcdefghijklmnopqrstuvwx';
     expect(types(key)).toContain('API_KEY');
+  });
+  it('detects an Anthropic key', () => {
+    expect(types('sk-ant-api03-xK9mPqRsWzYbNvTrAb3dFgHjKpQr')).toContain('API_KEY');
+  });
+  it('detects a context-triggered generic secret', () => {
+    expect(types('api_key=xK9mPqRsWzYbNvTrAb3dFgHj')).toContain('API_KEY');
+  });
+  it('detects password after "is"', () => {
+    expect(types('my password is Tr0ub4dor3xK9mPqRsWzYbNv')).toContain('API_KEY');
+  });
+  it('does not flag a random ID inside a URL path', () => {
+    expect(types('check https://docs.google.com/document/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms/edit')).not.toContain('API_KEY');
+  });
+  it('does not flag a Notion page URL', () => {
+    expect(types('see https://www.notion.so/My-Page-1a2b3c4d5e6f7890abcdef1234567890')).not.toContain('API_KEY');
   });
   it('detects a GitHub PAT', () => {
     expect(types('token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789')).toContain('API_KEY');

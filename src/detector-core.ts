@@ -70,7 +70,7 @@ const DEFAULT_PATTERNS: Array<{
     //         Hugging Face, Replicate, Google, Pinecone, LinkedIn, SendGrid,
     //         Mailgun, Twilio, generic api_/apr_ prefixes.
     type: 'API_KEY',
-    regex: /\b(?:AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}|sk-ant-(?:api03-)?[a-zA-Z0-9_-]{20,}|sk-(?:proj-|live_|test_)?[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|glpat-[a-zA-Z0-9_-]{20,}|xox[baprs]-[a-zA-Z0-9-]{10,}|hf_[a-zA-Z0-9]{30,}|r8_[a-zA-Z0-9]{36}|AIza[a-zA-Z0-9_-]{35}|pcsk_[a-zA-Z0-9_]{40,}|pat-na[0-9]-[a-zA-Z0-9_-]{40,}|SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}|key-[a-zA-Z0-9]{32}|AC[a-zA-Z0-9]{32}|SK[a-zA-Z0-9]{32}|ap[ir]_[a-zA-Z0-9_-]{30,})[a-zA-Z0-9._-]*/g,
+    regex: /\b(?:AKIA[0-9A-Z]{16}|eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}|sk-ant-(?:api03-)?[a-zA-Z0-9_-]{20,}|sk[-_](?:proj-|live_|test_)?[a-zA-Z0-9_-]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}|glpat-[a-zA-Z0-9_-]{20,}|xox[baprs]-[a-zA-Z0-9-]{10,}|hf_[a-zA-Z0-9]{30,}|r8_[a-zA-Z0-9]{36}|AIza[a-zA-Z0-9_-]{35}|pcsk_[a-zA-Z0-9_]{40,}|pat-na[0-9]-[a-zA-Z0-9_-]{40,}|SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}|key-[a-zA-Z0-9]{32}|AC[a-zA-Z0-9]{32}|SK[a-zA-Z0-9]{32}|ap[ir]_[a-zA-Z0-9_-]{30,})[a-zA-Z0-9._-]*/g,
     confidence: 'high',
   },
   {
@@ -120,11 +120,30 @@ const DEFAULT_PATTERNS: Array<{
 export function detectPII(text: string, options: { detectNames?: boolean } = {}): Match[] {
   const matches: Match[] = [];
 
+  // Pre-compute URL spans so we can skip matches that fall inside a URL path/query.
+  // We skip only the PATH portion (after the host) — the URL itself is still sent as-is.
+  const urlSpans: Array<[number, number]> = [];
+  {
+    const urlRx = /https?:\/\/[^\s]+/g;
+    let um: RegExpExecArray | null;
+    while ((um = urlRx.exec(text)) !== null) {
+      // Find where the path starts (after the host)
+      const hostEnd = um[0].indexOf('/', um[0].indexOf('://') + 3);
+      if (hostEnd !== -1) {
+        urlSpans.push([um.index + hostEnd, um.index + um[0].length]);
+      }
+    }
+  }
+  function insideUrlPath(index: number, length: number): boolean {
+    return urlSpans.some(([s, e]) => index >= s && index + length <= e);
+  }
+
   for (const p of DEFAULT_PATTERNS) {
     const rx = new RegExp(p.regex.source, p.regex.flags);
     let m: RegExpExecArray | null;
     while ((m = rx.exec(text)) !== null) {
       if (p.validate && !p.validate(m[0])) continue;
+      if (insideUrlPath(m.index, m[0].length)) continue;
       matches.push({ type: p.type, match: m[0], index: m.index, length: m[0].length, confidence: p.confidence });
     }
   }
