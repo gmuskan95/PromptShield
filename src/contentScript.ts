@@ -400,12 +400,15 @@ import { detectPII, redact } from './detector-core';
         }
       });
 
-      // Block all keyboard input from reaching the page while modal is open
+      // Block keyboard input from reaching the page while modal is open.
+      // Allow: Tab (focus cycling), Escape (cancel), Backspace/Delete (editing),
+      // and modifier combos Ctrl/Cmd+A/C/X/Z (select-all, copy, cut, undo).
       shadow.addEventListener('keydown', (e: Event) => {
         const ke = e as KeyboardEvent;
-        if (ke.key === 'Escape') { e.stopPropagation(); done('cancel'); }
-        // Let Tab cycle within the shadow naturally; stop everything else
-        if (ke.key !== 'Tab') e.stopPropagation();
+        if (ke.key === 'Escape') { e.stopPropagation(); done('cancel'); return; }
+        const isEditKey = ke.key === 'Tab' || ke.key === 'Backspace' || ke.key === 'Delete';
+        const isModifierCombo = (ke.ctrlKey || ke.metaKey) && /^[acxz]$/i.test(ke.key);
+        if (!isEditKey && !isModifierCombo) e.stopPropagation();
       }, true);
 
       // ── Pill toggle — pointerdown for instant response ──
@@ -587,18 +590,22 @@ import { detectPII, redact } from './detector-core';
 
       let matches = detectPII(text, { detectNames: settings.detectNames });
 
-      // Inject custom blocklist matches as synthetic PII hits
+      // Inject custom blocklist matches as synthetic PII hits.
+      // Use whole-word matching: the term must not be immediately preceded or
+      // followed by a word character, so "password" won't match "hasPassword".
       const blocklist: string[] = Array.isArray(settings.blocklist) ? settings.blocklist : [];
+      function findBlocklistMatches(src: string, term: string, out: typeof matches) {
+        const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const rx = new RegExp(`(?<![\\w])${escaped}(?![\\w])`, 'gi');
+        let bm: RegExpExecArray | null;
+        while ((bm = rx.exec(src)) !== null) {
+          out.push({ type: 'CUSTOM', match: bm[0], index: bm.index, length: bm[0].length, confidence: 'high' });
+        }
+      }
       for (const term of blocklist) {
         const trimmed = term.trim();
         if (!trimmed) continue;
-        let idx = 0;
-        while (true) {
-          const pos = text.indexOf(trimmed, idx);
-          if (pos === -1) break;
-          matches.push({ type: 'CUSTOM', match: trimmed, index: pos, length: trimmed.length, confidence: 'high' });
-          idx = pos + trimmed.length;
-        }
+        findBlocklistMatches(text, trimmed, matches);
       }
 
       if (matches.length === 0) { sendCallback(); return; }
@@ -633,13 +640,7 @@ import { detectPII, redact } from './detector-core';
         for (const term of blocklist) {
           const trimmed = term.trim();
           if (!trimmed) continue;
-          let idx = 0;
-          while (true) {
-            const pos = baseText.indexOf(trimmed, idx);
-            if (pos === -1) break;
-            matches.push({ type: 'CUSTOM', match: trimmed, index: pos, length: trimmed.length, confidence: 'high' });
-            idx = pos + trimmed.length;
-          }
+          findBlocklistMatches(baseText, trimmed, matches);
         }
         matches.sort((a, b) => a.index - b.index);
         matches = matches.filter((m, i) => {

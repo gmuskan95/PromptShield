@@ -120,22 +120,50 @@ const DEFAULT_PATTERNS: Array<{
 export function detectPII(text: string, options: { detectNames?: boolean } = {}): Match[] {
   const matches: Match[] = [];
 
-  // Pre-compute URL spans so we can skip matches that fall inside a URL path/query.
-  // We skip only the PATH portion (after the host) — the URL itself is still sent as-is.
-  const urlSpans: Array<[number, number]> = [];
+  // Pre-compute URL path spans so we can:
+  //   1. Skip random-looking strings inside URL paths (e.g. Google Doc IDs)
+  //   2. BUT still flag UUIDs inside URL paths — those are real identifiers
+  //   3. NOT skip query string params — ?api_key=sk_live_... must still be detected
+  const urlPathOnlySpans: Array<[number, number]> = []; // path only, excludes query/fragment
   {
     const urlRx = /https?:\/\/[^\s]+/g;
     let um: RegExpExecArray | null;
     while ((um = urlRx.exec(text)) !== null) {
-      // Find where the path starts (after the host)
-      const hostEnd = um[0].indexOf('/', um[0].indexOf('://') + 3);
-      if (hostEnd !== -1) {
-        urlSpans.push([um.index + hostEnd, um.index + um[0].length]);
-      }
+      const afterProto = um[0].indexOf('://') + 3;
+      const pathStart = um[0].indexOf('/', afterProto);
+      if (pathStart === -1) continue;
+      // Path ends at ? or # — query string and fragment are NOT suppressed
+      const queryStart = um[0].indexOf('?', pathStart);
+      const fragStart = um[0].indexOf('#', pathStart);
+      const pathEnd = queryStart !== -1 ? queryStart : fragStart !== -1 ? fragStart : um[0].length;
+      urlPathOnlySpans.push([um.index + pathStart, um.index + pathEnd]);
     }
   }
   function insideUrlPath(index: number, length: number): boolean {
-    return urlSpans.some(([s, e]) => index >= s && index + length <= e);
+    return urlPathOnlySpans.some(([s, e]) => index >= s && index + length <= e);
+  }
+
+  // Detect UUIDs inside URL paths — flag them so they get redacted while
+  // the rest of the URL stays intact.
+  {
+    const uuidRx = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    let um: RegExpExecArray | null;
+    while ((um = uuidRx.exec(text)) !== null) {
+      if (insideUrlPath(um.index, um[0].length)) {
+        matches.push({ type: 'UUID', match: um[0], index: um.index, length: um[0].length, confidence: 'high' });
+      }
+    }
+  }
+
+  // Also detect standalone UUIDs outside URLs
+  {
+    const uuidRx = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+    let um: RegExpExecArray | null;
+    while ((um = uuidRx.exec(text)) !== null) {
+      if (!insideUrlPath(um.index, um[0].length)) {
+        matches.push({ type: 'UUID', match: um[0], index: um.index, length: um[0].length, confidence: 'medium' });
+      }
+    }
   }
 
   for (const p of DEFAULT_PATTERNS) {
