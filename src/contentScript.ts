@@ -212,6 +212,11 @@ import { detectPII, redact } from './detector-core';
         #ps-send:hover { background: #047857; box-shadow: 0 4px 12px rgba(5,150,105,0.35); }
         #ps-send:active { transform: scale(0.97); }
         #ps-send:disabled { background: #94a3b8; box-shadow: none; cursor: default; }
+        #ps-timeout {
+          font-size: 11px; color: #94a3b8; align-self: center;
+          transition: color 0.3s;
+        }
+        #ps-timeout.urgent { color: #ef4444; font-weight: 600; }
       `;
 
       const overlay = document.createElement('div');
@@ -314,9 +319,11 @@ import { detectPII, redact } from './detector-core';
       const cancelBtn = document.createElement('button');
       cancelBtn.id = 'ps-cancel';
       cancelBtn.textContent = 'Cancel';
+      const timeoutEl = document.createElement('span');
+      timeoutEl.id = 'ps-timeout';
       const sendBtn = document.createElement('button');
       sendBtn.id = 'ps-send';
-      actions.append(cancelBtn, sendBtn);
+      actions.append(cancelBtn, timeoutEl, sendBtn);
 
       box.append(modalHeader, body, actions);
       overlay.appendChild(box);
@@ -445,6 +452,24 @@ import { detectPII, redact } from './detector-core';
         cleanup();
         resolve(result);
       }
+
+      // ── 60-second auto-cancel countdown ──
+      const TIMEOUT_SECS = 60;
+      let remaining = TIMEOUT_SECS;
+      timeoutEl.textContent = `Auto-cancel in ${remaining}s`;
+      const countdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(countdownInterval);
+          done('cancel');
+        } else {
+          timeoutEl.textContent = `Auto-cancel in ${remaining}s`;
+          if (remaining <= 10) timeoutEl.classList.add('urgent');
+        }
+      }, 1000);
+      // Override cleanup to also clear the interval when user acts before it fires
+      const _cleanup = cleanup;
+      (cleanup as any) = () => { clearInterval(countdownInterval); _cleanup(); };
 
       closeBtn.addEventListener('click', () => done('cancel'));
       cancelBtn.addEventListener('click', () => done('cancel'));
